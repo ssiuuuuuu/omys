@@ -1,0 +1,203 @@
+from __future__ import annotations
+
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from .config import get_settings
+from .geo import distance_meters, travel_minutes
+from .models import PlaceCandidate, Room, Selection
+from .places import PlacesProvider
+from .schemas import PlaceResult
+
+
+NO_CANDIDATE_MESSAGE = "현재 조건에 맞으면서 영업 중인 장소를 찾지 못했습니다. 이동 시간, 예산 또는 제외 조건을 조금 넓혀 주세요."
+
+
+def opening_is_viable(place: PlaceResult, eta_minutes: int) -> bool:
+    # Kakao Local search does not return opening hours. Keep these places eligible,
+    # but surface them as requiring a phone/detail-page check in the UI.
+    if place.business_status == "UNKNOWN_KAKAO":
+        return True
+    if place.is_public_outdoor and place.business_status not in {
+        "CLOSED_TEMPORARILY",
+        "CLOSED_PERMANENTLY",
+    }:
+        return True
+    if place.business_status != "OPERATIONAL" or place.open_now is not True:
+        return False
+    if place.next_close_time is None:
+        return False
+    close_time = place.next_close_time
+    if close_time.tzinfo is None:
+        close_time = close_time.replace(tzinfo=timezone.utc)
+    needed_until = datetime.now(timezone.utc) + timedelta(
+        minutes=eta_minutes + get_settings().min_stay_minutes
+    )
+    return close_time >= needed_until
+
+
+def candidate_from_place(
+    room_id: str, place: PlaceResult, participant_id: str | None = None
+) -> PlaceCandidate:
+    return PlaceCandidate(
+        room_id=room_id,
+        participant_id=participant_id,
+        external_place_id=place.external_place_id,
+        name=place.name,
+        category=place.category,
+        address=place.address,
+        latitude=place.latitude,
+        longitude=place.longitude,
+        price_level=place.price_level,
+        business_status=place.business_status,
+        open_now=place.open_now,
+        next_close_time=place.next_close_time,
+        is_public_outdoor=place.is_public_outdoor,
+        place_url=place.place_url,
+        phone=place.phone,
+    )
+
+
+def sync_verification(candidate: PlaceCandidate, verified: PlaceResult) -> None:
+    candidate.name = verified.name
+    candidate.category = verified.category
+    candidate.address = verified.address
+    candidate.latitude = verified.latitude
+    candidate.longitude = verified.longitude
+    candidate.price_level = verified.price_level
+    candidate.business_status = verified.business_status
+    candidate.open_now = verified.open_now
+    candidate.next_close_time = verified.next_close_time
+    candidate.is_public_outdoor = verified.is_public_outdoor
+    candidate.place_url = verified.place_url
+    candidate.phone = verified.phone
+    candidate.last_verified_at = datetime.now(timezone.utc)
+
+
+async def lock_selection(
+    db: Session, room: Room, provider: PlacesProvider, redraw: bool = False
+) -> PlaceCandidate:
+    # PostgreSQL turns this into SELECT ... FOR UPDATE. SQLite safely serializes the write transaction.
+    locked_room = db.scalar(select(Room).where(Room.id == room.id).with_for_update())
+    if not locked_room:
+        raise HTTPException(404, "방을 찾을 수 없습니다.")
+    room = locked_room
+
+    if not redraw and room.selected_place_id:
+        return db.get(PlaceCandidate, room.selected_place_id)
+    if redraw:
+        if not room.redraw_allowed or room.redraw_count >= 1:
+            raise HTTPException(409, "다시 뽑기 기회를 모두 사용했습니다.")
+        if room.status != "drawn":
+            raise HTTPException(409, "출발 전 추첨 완료 상태에서만 다시 뽑을 수 있습니다.")
+
+    selected_before = set(
+        db.scalars(select(Selection.place_candidate_id).where(Selection.room_id == room.id)).all()
+    )
+    candidates = list(
+        db.scalars(select(PlaceCandidate).where(PlaceCandidate.room_id == room.id)).all()
+    )
+    candidates = [candidate for candidate in candidates if candidate.id not in selected_before]
+    secrets.SystemRandom().shuffle(candidates)
+    mode = room.condition.transport_mode if room.condition else "walk"
+
+    chosen = None
+    for candidate in candidates:
+        if candidate.business_status == "UNKNOWN_KAKAO":
+            verified = PlaceResult(
+                external_place_id=candidate.external_place_id,
+                name=candidate.name,
+                category=candidate.category,
+                address=candidate.address,
+                latitude=candidate.latitude,
+                longitude=candidate.longitude,
+                price_level=candidate.price_level,
+                business_status=candidate.business_status,
+                open_now=None,
+                next_close_time=None,
+                is_public_outdoor=candidate.is_public_outdoor,
+                place_url=candidate.place_url,
+                phone=candidate.phone,
+            )
+        else:
+            try:
+                verified = await provider.verify(candidate.external_place_id)
+            except Exception:
+                continue
+        if not verified:
+            continue
+        eta = travel_minutes(
+            distance_meters(
+                room.departure_latitude,
+                room.departure_longitude,
+                verified.latitude,
+                verified.longitude,
+            ),
+            mode,
+        )
+        sync_verification(candidate, verified)
+        if opening_is_viable(verified, eta):
+            chosen = candidate
+            break
+
+    if not chosen:
+        raise HTTPException(422, NO_CANDIDATE_MESSAGE)
+
+    if room.selected_place_id:
+        old = db.get(PlaceCandidate, room.selected_place_id)
+        if old:
+            old.is_selected = False
+        for selection in room.selections:
+            selection.active = False
+
+    attempt = len(room.selections) + 1
+    selection = Selection(
+        room_id=room.id, place_candidate_id=chosen.id, attempt=attempt, active=True
+    )
+    chosen.is_selected = True
+    room.selected_place_id = chosen.id
+    room.status = "drawn"
+    if redraw:
+        room.redraw_count += 1
+    db.add(selection)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        fresh = db.scalar(select(Room).where(Room.id == room.id))
+        if fresh and fresh.selected_place_id and not redraw:
+            return db.get(PlaceCandidate, fresh.selected_place_id)
+        raise HTTPException(409, "이미 처리된 추첨 요청입니다.")
+    db.refresh(chosen)
+    return chosen
+
+
+def place_payload(
+    place: PlaceCandidate, origin_lat: float | None = None, origin_lon: float | None = None
+) -> dict:
+    payload = {
+        "external_place_id": place.external_place_id,
+        "name": place.name,
+        "category": place.category,
+        "address": place.address,
+        "latitude": place.latitude,
+        "longitude": place.longitude,
+        "price_level": place.price_level,
+        "business_status": place.business_status,
+        "open_now": place.open_now,
+        "next_close_time": place.next_close_time,
+        "is_public_outdoor": place.is_public_outdoor,
+        "place_url": place.place_url,
+        "phone": place.phone,
+        "verified_at": place.last_verified_at,
+    }
+    if origin_lat is not None and origin_lon is not None:
+        payload["distance_meters"] = round(
+            distance_meters(origin_lat, origin_lon, place.latitude, place.longitude)
+        )
+    return payload
