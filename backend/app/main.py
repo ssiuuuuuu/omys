@@ -667,7 +667,8 @@ async def set_conditions(
     if search_tasks and failed_searches == len(search_tasks):
         raise HTTPException(
             503,
-            "카카오 장소 검색 응답이 늦어지고 있습니다. 잠시 후 다시 시도해 주세요.",
+            "카카오 장소 검색 응답이 늦어지고 있습니다. 잠시 후 다시 시도하거나 "
+            "시간 설정을 조금 더 완화해 주세요.",
         )
 
     for place in found.values():
