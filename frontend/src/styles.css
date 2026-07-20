@@ -63,6 +63,11 @@ p {
   font-weight: 700;
   letter-spacing: 0.05em;
 }
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .logo {
   display: flex;
   align-items: center;

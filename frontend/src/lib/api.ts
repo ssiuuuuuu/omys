@@ -75,6 +75,7 @@ export type AdminStats = AdminMetricSummary & {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+const STORAGE_PREFIX = 'omys:'
 
 export class ApiError extends Error {
   constructor(
@@ -93,6 +94,13 @@ export function getToken(code: string) {
 }
 export function saveToken(code: string, token: string) {
   localStorage.setItem(tokenKey(code), token)
+}
+
+export function resetLocalSession() {
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index)
+    if (key?.startsWith(STORAGE_PREFIX)) localStorage.removeItem(key)
+  }
 }
 
 export async function api<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {

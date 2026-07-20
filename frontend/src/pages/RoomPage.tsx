@@ -13,7 +13,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, getToken, track, type Room } from '../lib/api'
+import { api, getToken, resetLocalSession, track, type Room } from '../lib/api'
 import { Button, EmptyState, Notice, Shell, Skeleton } from '../components/UI'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { Conditions } from '../components/Conditions'
@@ -140,8 +140,19 @@ export default function RoomPage() {
     if (confirm('위치 확인 없이 모든 참가자에게 장소를 공개할까요?'))
       void action('reveal', { manual_confirm: true })
   }
+  const goHome = () => {
+    resetLocalSession()
+    navigate('/', { replace: true })
+  }
+  const goToStepOne = () => navigate(`/create?mode=${room.mode}`)
   return (
-    <Shell>
+    <Shell
+      home={room.status === 'waiting'}
+      onHome={goHome}
+      back={room.status === 'waiting'}
+      backLabel="STEP 1로 돌아가기"
+      onBack={goToStepOne}
+    >
       <div className="room-header">
         <div>
           <span className="step-label">

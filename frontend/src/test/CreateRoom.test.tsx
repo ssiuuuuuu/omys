@@ -13,7 +13,10 @@ vi.mock('../lib/kakao', () => ({
 }))
 
 describe('CreateRoom departure location', () => {
-  afterEach(() => cleanup())
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
 
   beforeEach(() => {
     vi.mocked(searchKakaoLocation).mockResolvedValue({
@@ -41,10 +44,22 @@ describe('CreateRoom departure location', () => {
         <Routes>
           <Route path="/create" element={<CreateRoom />} />
           <Route path="/room/:code" element={<div>방 생성 완료</div>} />
+          <Route path="/" element={<div>홈 화면</div>} />
         </Routes>
       </MemoryRouter>,
     )
   }
+
+  it('STEP 1 뒤로가기는 진행 상태를 초기화하고 홈으로 이동한다', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('omys:participant:OLD123', 'old-token')
+    renderPage('omys')
+
+    await user.click(screen.getByRole('button', { name: '홈으로 돌아가기' }))
+
+    expect(screen.getByText('홈 화면')).toBeInTheDocument()
+    expect(localStorage.getItem('omys:participant:OLD123')).toBeNull()
+  })
 
   it('출발 위치 입력을 누르면 기본 위치를 지도 확인 카드로 보여준다', async () => {
     const user = userEvent.setup()

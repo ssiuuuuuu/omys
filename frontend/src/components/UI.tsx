@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
-import { AlertCircle, ArrowLeft, LoaderCircle, MapPin, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowLeft, House, LoaderCircle, MapPin, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export function Logo({ compact = false }: { compact?: boolean }) {
@@ -17,16 +17,49 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 export function Shell({
   children,
   back,
+  backLabel = '뒤로',
+  onBack,
+  home,
+  onHome,
   wide = false,
-}: PropsWithChildren<{ back?: boolean; wide?: boolean }>) {
+}: PropsWithChildren<{
+  back?: boolean
+  backLabel?: string
+  onBack?: () => void
+  home?: boolean
+  onHome?: () => void
+  wide?: boolean
+}>) {
   const navigate = useNavigate()
+  const hasNavigation = back || home
   return (
     <div className="app-shell">
       <header className="topbar">
-        {back ? (
-          <button className="icon-button" onClick={() => navigate(-1)} aria-label="뒤로">
-            <ArrowLeft />
-          </button>
+        {hasNavigation ? (
+          <div className="topbar__actions">
+            {back && (
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => (onBack ? onBack() : navigate(-1))}
+                aria-label={backLabel}
+                title={backLabel}
+              >
+                <ArrowLeft />
+              </button>
+            )}
+            {home && (
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => (onHome ? onHome() : navigate('/', { replace: true }))}
+                aria-label="홈으로"
+                title="홈으로"
+              >
+                <House />
+              </button>
+            )}
+          </div>
         ) : (
           <Logo compact />
         )}

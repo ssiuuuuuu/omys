@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Crosshair, EyeOff, LockKeyhole, MapPin, Search, Users } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api, saveToken } from '../lib/api'
+import { api, resetLocalSession, saveToken } from '../lib/api'
 import { describeKakaoCoordinates, searchKakaoLocation, type KakaoLocation } from '../lib/kakao'
 import { DepartureLocationPreview } from '../components/DepartureLocationPreview'
 import { Button, Field, Notice, Shell } from '../components/UI'
@@ -25,6 +25,11 @@ export default function CreateRoom() {
   const [findingLocation, setFindingLocation] = useState(false)
   const [locationPreview, setLocationPreview] = useState<KakaoLocation | null>(null)
   const [locationConfirmed, setLocationConfirmed] = useState(false)
+
+  const goHome = () => {
+    resetLocalSession()
+    navigate('/', { replace: true })
+  }
 
   const previewDefaultLocation = () => {
     if (locationPreview || form.location !== '서울시청') return
@@ -145,7 +150,7 @@ export default function CreateRoom() {
     }
   }
   return (
-    <Shell back>
+    <Shell back backLabel="홈으로 돌아가기" onBack={goHome}>
       <div className="step-label">STEP 1 · 방 만들기</div>
       <h1 className="page-title">
         {mode === 'friends' ? '친구들과 어디로 가볼까요?' : '조건만 알려주면 나머지는 비밀!'}

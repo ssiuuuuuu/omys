@@ -3,10 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Conditions } from '../components/Conditions'
+import { resetLocalSession } from '../lib/api'
 
 describe('Conditions', () => {
   afterEach(() => {
     cleanup()
+    localStorage.clear()
     vi.unstubAllGlobals()
   })
 
@@ -78,5 +80,17 @@ describe('Conditions', () => {
     await user.click(screen.getByRole('button', { name: /비밀 스팟 뽑기/ }))
 
     expect(await screen.findByText(/조건을 조금 완화해 주세요/)).toBeInTheDocument()
+  })
+
+  it('홈 이동 시 OMYS 저장값은 모두 지우고 다른 사이트 저장값은 유지한다', () => {
+    localStorage.setItem('omys:participant:ROOM123', 'participant-token')
+    localStorage.setItem('omys:anonymous-session', 'anonymous-session')
+    localStorage.setItem('unrelated-setting', 'keep')
+
+    resetLocalSession()
+
+    expect(localStorage.getItem('omys:participant:ROOM123')).toBeNull()
+    expect(localStorage.getItem('omys:anonymous-session')).toBeNull()
+    expect(localStorage.getItem('unrelated-setting')).toBe('keep')
   })
 })
