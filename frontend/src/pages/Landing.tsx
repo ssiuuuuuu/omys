@@ -142,6 +142,11 @@ export default function Landing() {
                   <li>끄면 출발 전에 미스터리 스팟을 확인할 수 있어요.</li>
                 </ul>
               </li>
+              <li>조건을 설정하고 미스터리 스팟을 누르세요
+                <ul>
+                  <li>응답이 늦어지면 검색 조건을 조금 더 완화하세요</li>
+                </ul>
+              </li>
             </ol>
           </section>
 
