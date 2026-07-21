@@ -66,6 +66,10 @@ describe('mystery activities', () => {
     )
 
     expect(await screen.findByText('지금 어떤 느낌이 필요한가요?')).toBeInTheDocument()
+    const pageViewRequest = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input).endsWith('/api/analytics'))
+    expect(JSON.parse(String(pageViewRequest?.[1]?.body)).event_name).toBe('activity_page_view')
     expect(screen.getByRole('button', { name: /가볍게/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /웃기게/ })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /도파민/ }))

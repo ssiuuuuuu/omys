@@ -14,18 +14,37 @@ def test_admin_stats_groups_recent_landing_views(client):
         )
         assert response.status_code == 202
 
+    for event_name, session_id in (
+        ("activity_tab_opened", "activity-visitor-a"),
+        ("activity_page_view", "activity-visitor-b"),
+        ("activity_page_view", "activity-visitor-b"),
+    ):
+        response = client.post(
+            "/api/analytics",
+            json={
+                "anonymous_session_id": session_id,
+                "event_name": event_name,
+                "metadata": {},
+            },
+        )
+        assert response.status_code == 202
+
     response = client.get("/api/admin/stats?range=6h", headers=admin_headers())
 
     assert response.status_code == 200
     body = response.json()
     assert body["visitors"] == 2
     assert body["pageviews"] == 3
+    assert body["activity_visitors"] == 2
+    assert body["activity_pageviews"] == 3
     assert body["period"]["range"] == "6h"
     assert body["period"]["timezone"] == "Asia/Seoul"
     assert body["period"]["bucket_hours"] == 1
     assert len(body["period"]["series"]) == 6
     assert body["period"]["totals"]["visitors"] == 2
     assert body["period"]["totals"]["pageviews"] == 3
+    assert body["period"]["totals"]["activity_visitors"] == 2
+    assert body["period"]["totals"]["activity_pageviews"] == 3
     assert sum(point["pageviews"] for point in body["period"]["series"]) == 3
 
 

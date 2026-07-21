@@ -96,11 +96,7 @@ export default function Landing() {
             지금 필요한 느낌을 선택하면 OMYS가 바로 할 일을 정해 드려요.
           </p>
         </div>
-        <Link
-          className="button button--secondary"
-          to="/activities"
-          onClick={() => track('activity_tab_opened')}
-        >
+        <Link className="button button--secondary" to="/activities">
           활동 뽑기
         </Link>
       </section>
@@ -142,7 +138,8 @@ export default function Landing() {
                   <li>끄면 출발 전에 미스터리 스팟을 확인할 수 있어요.</li>
                 </ul>
               </li>
-              <li>조건을 설정하고 미스터리 스팟을 누르세요
+              <li>
+                조건을 설정하고 미스터리 스팟을 누르세요
                 <ul>
                   <li>응답이 늦어지면 시간 설정을 조금 더 완화해 주세요</li>
                 </ul>

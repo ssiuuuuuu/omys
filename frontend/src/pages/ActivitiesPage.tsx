@@ -62,6 +62,10 @@ export default function ActivitiesPage() {
   const [partySize, setPartySize] = useState('')
   const [copied, setCopied] = useState(false)
 
+  useEffect(() => {
+    track('activity_page_view')
+  }, [])
+
   const saveSession = useCallback(
     (value: ActivitySession) => {
       setSession(value)

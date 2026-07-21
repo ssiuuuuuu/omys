@@ -11,6 +11,7 @@ import {
   Share2,
   Sparkles,
   Users,
+  Zap,
 } from 'lucide-react'
 import { Button, Notice, Shell } from '../components/UI'
 import { ApiError, getAdminStats, type AdminStats } from '../lib/api'
@@ -136,6 +137,12 @@ export default function AdminPage() {
       icon: DoorOpen,
     },
     {
+      label: '활동 뽑기 방문',
+      value: totals.activity_visitors,
+      detail: `조회 ${number(totals.activity_pageviews)}회`,
+      icon: Zap,
+    },
+    {
       label: '선정 완료',
       value: totals.draw_completed,
       detail: `전환 ${totals.conversion.room_to_draw_percent}%`,
@@ -259,6 +266,8 @@ export default function AdminPage() {
                   <th>시간</th>
                   <th>방문자</th>
                   <th>조회</th>
+                  <th>활동 방문</th>
+                  <th>활동 조회</th>
                   <th>방 생성</th>
                   <th>2명+</th>
                   <th>선정</th>
@@ -272,6 +281,8 @@ export default function AdminPage() {
                     <th>{point.label}</th>
                     <td>{number(point.visitors)}</td>
                     <td>{number(point.pageviews)}</td>
+                    <td>{number(point.activity_visitors)}</td>
+                    <td>{number(point.activity_pageviews)}</td>
                     <td>{number(point.rooms_created)}</td>
                     <td>{number(point.rooms_with_2_plus)}</td>
                     <td>{number(point.draw_completed)}</td>
@@ -288,6 +299,8 @@ export default function AdminPage() {
           <strong>전체 누적</strong>
           <span>방문자 {number(stats.visitors)}</span>
           <span>조회 {number(stats.pageviews)}</span>
+          <span>활동 방문 {number(stats.activity_visitors)}</span>
+          <span>활동 조회 {number(stats.activity_pageviews)}</span>
           <span>방 {number(stats.rooms_created)}</span>
           <span>선정 {number(stats.draw_completed)}</span>
           <span>공개 {number(stats.revealed)}</span>

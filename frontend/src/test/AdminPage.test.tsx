@@ -8,6 +8,8 @@ function stats(range = '6h') {
   return {
     visitors: 9,
     pageviews: 13,
+    activity_visitors: 7,
+    activity_pageviews: 11,
     rooms_created: 5,
     rooms_with_2_plus: 3,
     draw_completed: 2,
@@ -24,6 +26,8 @@ function stats(range = '6h') {
       totals: {
         visitors: 4,
         pageviews: 6,
+        activity_visitors: 3,
+        activity_pageviews: 5,
         rooms_created: 2,
         rooms_with_2_plus: 1,
         draw_completed: 1,
@@ -38,6 +42,8 @@ function stats(range = '6h') {
           label: '13시',
           visitors: 4,
           pageviews: 6,
+          activity_visitors: 3,
+          activity_pageviews: 5,
           rooms_created: 2,
           rooms_with_2_plus: 1,
           draw_completed: 1,

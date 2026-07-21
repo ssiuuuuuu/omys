@@ -81,6 +81,7 @@ EVENTS = {
     "redraw_requested",
     "no_candidate_found",
     "activity_tab_opened",
+    "activity_page_view",
     "activity_mood_selected",
     "activity_drawn",
     "activity_skipped",
@@ -97,6 +98,7 @@ STATS_RANGES = {
     "24h": {"label": "최근 24시간", "bucket_hours": 1, "bucket_count": 24},
     "3d": {"label": "최근 3일", "bucket_hours": 6, "bucket_count": 12},
 }
+ACTIVITY_VIEW_EVENTS = {"activity_tab_opened", "activity_page_view"}
 
 
 @asynccontextmanager
@@ -635,9 +637,7 @@ async def set_conditions(
         room.condition = condition
     db.flush()
     categories_to_search = payload.preferred_categories or CATEGORIES
-    search_radius = travel_distance_meters(
-        payload.max_travel_minutes, payload.transport_mode
-    )
+    search_radius = travel_distance_meters(payload.max_travel_minutes, payload.transport_mode)
     search_tasks = [
         asyncio.create_task(
             places_provider.search(
@@ -918,6 +918,7 @@ def stats_period(db: Session, range_name: str) -> dict:
 
     buckets = []
     visitor_sets: list[set[str]] = []
+    activity_visitor_sets: list[set[str]] = []
     for index in range(bucket_count):
         bucket_start = first_bucket + timedelta(hours=bucket_hours * index)
         bucket_end = bucket_start + timedelta(hours=bucket_hours)
@@ -932,6 +933,8 @@ def stats_period(db: Session, range_name: str) -> dict:
                 ),
                 "visitors": 0,
                 "pageviews": 0,
+                "activity_visitors": 0,
+                "activity_pageviews": 0,
                 "rooms_created": 0,
                 "rooms_with_2_plus": 0,
                 "draw_completed": 0,
@@ -940,6 +943,7 @@ def stats_period(db: Session, range_name: str) -> dict:
             }
         )
         visitor_sets.append(set())
+        activity_visitor_sets.append(set())
 
     def bucket_index(value: datetime) -> int | None:
         local_value = aware_utc(value).astimezone(KST)
@@ -954,6 +958,7 @@ def stats_period(db: Session, range_name: str) -> dict:
         )
     ).all()
     period_visitors: set[str] = set()
+    period_activity_visitors: set[str] = set()
     period_shares = 0
     for event in events:
         index = bucket_index(event.created_at)
@@ -963,6 +968,13 @@ def stats_period(db: Session, range_name: str) -> dict:
             buckets[index]["pageviews"] += 1
             visitor_sets[index].add(event.anonymous_session_id)
             period_visitors.add(event.anonymous_session_id)
+        elif (
+            event.event_name in ACTIVITY_VIEW_EVENTS
+            and event.anonymous_session_id != "server-generated"
+        ):
+            buckets[index]["activity_pageviews"] += 1
+            activity_visitor_sets[index].add(event.anonymous_session_id)
+            period_activity_visitors.add(event.anonymous_session_id)
         elif event.event_name == "result_shared":
             buckets[index]["shares"] += 1
             period_shares += 1
@@ -1013,6 +1025,7 @@ def stats_period(db: Session, range_name: str) -> dict:
 
     for index, visitors in enumerate(visitor_sets):
         buckets[index]["visitors"] = len(visitors)
+        buckets[index]["activity_visitors"] = len(activity_visitor_sets[index])
 
     rooms_created = len(rooms)
     draw_completed = len(selections)
@@ -1027,6 +1040,8 @@ def stats_period(db: Session, range_name: str) -> dict:
         "totals": {
             "visitors": len(period_visitors),
             "pageviews": sum(bucket["pageviews"] for bucket in buckets),
+            "activity_visitors": len(period_activity_visitors),
+            "activity_pageviews": sum(bucket["activity_pageviews"] for bucket in buckets),
             "rooms_created": rooms_created,
             "rooms_with_2_plus": period_multi_rooms,
             "draw_completed": draw_completed,
@@ -1068,6 +1083,23 @@ def admin_stats(
         )
         or 0
     )
+    activity_visitors = (
+        db.scalar(
+            select(func.count(func.distinct(AnalyticsEvent.anonymous_session_id))).where(
+                AnalyticsEvent.event_name.in_(ACTIVITY_VIEW_EVENTS),
+                AnalyticsEvent.anonymous_session_id != "server-generated",
+            )
+        )
+        or 0
+    )
+    activity_pageviews = (
+        db.scalar(
+            select(func.count(AnalyticsEvent.id)).where(
+                AnalyticsEvent.event_name.in_(ACTIVITY_VIEW_EVENTS)
+            )
+        )
+        or 0
+    )
     rooms = db.scalar(select(func.count(Room.id))) or 0
     multi_rooms = (
         db.scalar(
@@ -1093,6 +1125,8 @@ def admin_stats(
     return {
         "visitors": visitors,
         "pageviews": pageviews,
+        "activity_visitors": activity_visitors,
+        "activity_pageviews": activity_pageviews,
         "rooms_created": rooms,
         "rooms_with_2_plus": multi_rooms,
         "draw_completed": drawn,

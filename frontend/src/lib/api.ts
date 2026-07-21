@@ -44,6 +44,8 @@ export type Room = {
 export type AdminMetricSummary = {
   visitors: number
   pageviews: number
+  activity_visitors: number
+  activity_pageviews: number
   rooms_created: number
   rooms_with_2_plus: number
   draw_completed: number
