@@ -5,6 +5,7 @@
 - [ ] `PLACES_PROVIDER=google`로 변경하고 결제·쿼터가 설정된 Google Places API 키를 입력한다.
 - [ ] Google Cloud에서 Places API (New)를 활성화하고 API 키에 API/서버 IP 제한을 적용한다.
 - [ ] `ADMIN_API_KEY`, PostgreSQL 비밀번호를 각각 긴 무작위 값으로 교체한다.
+- [ ] `TMAP_API_KEY`를 서버 비밀 환경변수로 설정하고 보행자 길찾기 권한·쿼터를 확인한다.
 - [ ] `CORS_ORIGINS`, `FRONTEND_URL`, `VITE_API_BASE_URL`을 실제 HTTPS 도메인으로 설정한다.
 - [ ] `.env`가 Git과 배포 이미지에 포함되지 않았는지 확인한다.
 
@@ -31,4 +32,3 @@
 - [ ] mock 장소가 운영 배포에 포함되지 않도록 환경변수를 재확인한다.
 - [ ] 잘못된 영업시간/장소 정보 신고 및 고객 문의 채널을 준비한다.
 - [ ] 관리자 분석 API가 공개 인터넷에서 직접 노출되지 않게 방화벽 또는 인증 프록시를 둔다.
-

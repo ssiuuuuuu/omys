@@ -116,6 +116,7 @@ alembic current
 | `PLACES_PROVIDER` | `mock` | `mock`, `google` 또는 `kakao` |
 | `GOOGLE_PLACES_API_KEY` | 빈 값 | 서버 전용 Places API 키 |
 | `KAKAO_REST_API_KEY` | 빈 값 | 서버 전용 카카오 Local API 키 |
+| `TMAP_API_KEY` | 빈 값 | 서버 전용 TMAP 보행자 길찾기 API 키 |
 | `VITE_KAKAO_JAVASCRIPT_KEY` | 빈 값 | 친구 모드 브라우저 장소 검색용 키 |
 | `ADMIN_API_KEY` | 개발 기본값 | `/api/admin/stats`의 `X-Admin-Key` |
 | `MIN_STAY_MINUTES` | `60` | 영업 종료 검증의 최소 체류시간 |

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,9 @@ from .geo import Coordinate, distance_meters, travel_minutes
 from .models import PlaceCandidate, Room, Selection
 from .places import PlacesProvider
 from .schemas import PlaceResult
+
+
+logger = logging.getLogger(__name__)
 
 
 NO_CANDIDATE_MESSAGE = (
@@ -123,7 +127,14 @@ async def navigation_route(
             route = await _tmap_pedestrian_route(settings, origin, destination)
         else:
             return fallback
-    except (httpx.HTTPError, TypeError, ValueError, KeyError):
+    except (httpx.HTTPError, TypeError, ValueError, KeyError) as exc:
+        # Do not log provider credentials or request headers.
+        logger.warning(
+            "Navigation route provider failed; using straight-line fallback "
+            "(mode=%s, error=%s)",
+            mode,
+            type(exc).__name__,
+        )
         return fallback
 
     return _finalize_route(route or [], origin, destination) or fallback
