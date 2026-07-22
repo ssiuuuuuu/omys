@@ -51,6 +51,18 @@ function stats(range = '6h') {
           shares: 0,
         },
       ],
+      traffic_sources: [
+        {
+          source: 'instagram',
+          campaign: 'launch',
+          content: 'profile',
+          visitors: 3,
+          pageviews: 4,
+          create_starts: 2,
+          activity_starts: 1,
+          conversion_percent: 66.7,
+        },
+      ],
     },
   }
 }
@@ -92,6 +104,8 @@ describe('admin analytics dashboard', () => {
     expect(await screen.findByRole('heading', { name: '운영 대시보드' })).toBeInTheDocument()
     expect(screen.getByLabelText('최근 6시간 요약')).toBeInTheDocument()
     expect(screen.getByText('전체 누적')).toBeInTheDocument()
+    expect(screen.getByText('instagram')).toBeInTheDocument()
+    expect(screen.getByText('66.7%')).toBeInTheDocument()
 
     const firstRequest = vi.mocked(fetch).mock.calls[0]
     expect(String(firstRequest[0])).toContain('/api/admin/stats?range=6h')

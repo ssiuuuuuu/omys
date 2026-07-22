@@ -181,6 +181,14 @@ curl -H "X-Admin-Key: $ADMIN_API_KEY" http://localhost:8000/api/admin/stats
 기간은 최근 6시간, 12시간, 24시간, 3일 중 선택하며 모든 구간은 한국 시간 기준입니다.
 API를 직접 호출할 때는 `range=6h`, `12h`, `24h`, `3d` 중 하나를 지정합니다.
 
+인스타그램 프로필에는 기존 서비스 주소에 UTM 값을 붙인 링크를 사용합니다. 새 랜딩 페이지는 필요하지 않습니다.
+
+```text
+https://<배포주소>/?utm_source=instagram&utm_medium=social&utm_campaign=launch&utm_content=profile
+```
+
+스토리나 릴스 링크는 `utm_content`만 각각 `story`, `reels`로 바꾸면 관리자 화면의 `유입 경로`에서 위치별 방문자, 조회, 방 만들기 시작, 활동 시작을 확인할 수 있습니다.
+
 ## 배포
 
 권장 구성은 관리형 PostgreSQL + 컨테이너 FastAPI + CDN/정적 호스팅 프런트입니다.

@@ -1,143 +1,24 @@
 from __future__ import annotations
 
-import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-import httpx
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .geo import Coordinate, distance_meters, travel_minutes
+from .geo import distance_meters, travel_minutes
 from .models import PlaceCandidate, Room, Selection
 from .places import PlacesProvider
 from .schemas import PlaceResult
-
-
-logger = logging.getLogger(__name__)
 
 
 NO_CANDIDATE_MESSAGE = (
     "조건에 맞는 비밀 스팟을 찾지 못했습니다. 최대 이동 시간을 늘리거나 "
     "카테고리·공간 선호 같은 조건을 조금 완화해 주세요."
 )
-
-
-def _coordinates_from_kakao_directions(payload: dict) -> list[Coordinate]:
-    routes = payload.get("routes") or []
-    if not routes:
-        return []
-
-    coordinates: list[Coordinate] = []
-    for section in routes[0].get("sections") or []:
-        for road in section.get("roads") or []:
-            vertices = road.get("vertexes") or []
-            for index in range(0, len(vertices) - 1, 2):
-                point = (float(vertices[index + 1]), float(vertices[index]))
-                if not coordinates or coordinates[-1] != point:
-                    coordinates.append(point)
-    return coordinates
-
-
-def _coordinates_from_tmap_pedestrian(payload: dict) -> list[Coordinate]:
-    coordinates: list[Coordinate] = []
-    for feature in payload.get("features") or []:
-        geometry = feature.get("geometry") or {}
-        if geometry.get("type") != "LineString":
-            continue
-        for longitude, latitude in geometry.get("coordinates") or []:
-            point = (float(latitude), float(longitude))
-            if not coordinates or coordinates[-1] != point:
-                coordinates.append(point)
-    return coordinates
-
-
-def _finalize_route(
-    route: list[Coordinate], origin: Coordinate, destination: Coordinate
-) -> list[Coordinate] | None:
-    if len(route) < 2:
-        return None
-    if route[0] != origin:
-        route.insert(0, origin)
-    if route[-1] != destination:
-        route.append(destination)
-    return route
-
-
-async def _kakao_driving_route(
-    settings, origin: Coordinate, destination: Coordinate
-) -> list[Coordinate] | None:
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        response = await client.get(
-            "https://apis-navi.kakaomobility.com/v1/directions",
-            headers={"Authorization": f"KakaoAK {settings.kakao_rest_api_key}"},
-            params={
-                "origin": f"{origin[1]},{origin[0]}",
-                "destination": f"{destination[1]},{destination[0]}",
-                "priority": "RECOMMEND",
-                "summary": "false",
-            },
-        )
-        response.raise_for_status()
-        return _coordinates_from_kakao_directions(response.json())
-
-
-async def _tmap_pedestrian_route(
-    settings, origin: Coordinate, destination: Coordinate
-) -> list[Coordinate] | None:
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        response = await client.post(
-            "https://apis.openapi.sk.com/tmap/routes/pedestrian",
-            params={"version": "1"},
-            headers={
-                "appKey": settings.tmap_api_key,
-                "Content-Type": "application/json",
-            },
-            json={
-                "startX": str(origin[1]),
-                "startY": str(origin[0]),
-                "endX": str(destination[1]),
-                "endY": str(destination[0]),
-                "startName": "출발",
-                "endName": "도착",
-            },
-        )
-        response.raise_for_status()
-        return _coordinates_from_tmap_pedestrian(response.json())
-
-
-async def navigation_route(
-    origin: Coordinate, destination: Coordinate, mode: str = "walk"
-) -> list[Coordinate]:
-    settings = get_settings()
-    fallback = [origin, destination]
-    if settings.environment == "test":
-        return fallback
-
-    # Kakao Mobility's directions endpoint only returns car/driving routes and Tmap's
-    # pedestrian endpoint only returns walking routes, so each provider is scoped to the
-    # transport mode it actually supports. Transit has no routed-path provider yet.
-    try:
-        if mode == "car" and settings.kakao_rest_api_key:
-            route = await _kakao_driving_route(settings, origin, destination)
-        elif mode == "walk" and settings.tmap_api_key:
-            route = await _tmap_pedestrian_route(settings, origin, destination)
-        else:
-            return fallback
-    except (httpx.HTTPError, TypeError, ValueError, KeyError) as exc:
-        # Do not log provider credentials or request headers.
-        logger.warning(
-            "Navigation route provider failed; using straight-line fallback "
-            "(mode=%s, error=%s)",
-            mode,
-            type(exc).__name__,
-        )
-        return fallback
-
-    return _finalize_route(route or [], origin, destination) or fallback
 
 
 def opening_is_viable(place: PlaceResult, eta_minutes: int) -> bool:

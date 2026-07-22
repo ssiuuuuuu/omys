@@ -63,6 +63,17 @@ export type AdminStatsPoint = Omit<AdminMetricSummary, 'conversion'> & {
   label: string
 }
 
+export type AdminTrafficSource = {
+  source: string
+  campaign: string
+  content: string
+  visitors: number
+  pageviews: number
+  create_starts: number
+  activity_starts: number
+  conversion_percent: number
+}
+
 export type AdminStats = AdminMetricSummary & {
   period: {
     range: '6h' | '12h' | '24h' | '3d'
@@ -73,11 +84,13 @@ export type AdminStats = AdminMetricSummary & {
     end: string
     totals: AdminMetricSummary
     series: AdminStatsPoint[]
+    traffic_sources: AdminTrafficSource[]
   }
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 const STORAGE_PREFIX = 'omys:'
+const ATTRIBUTION_STORAGE_KEY = 'omys:traffic-attribution'
 export const ACTIVITY_SESSION_STORAGE_KEY = 'omys:activity-session'
 
 export class ApiError extends Error {
@@ -138,6 +151,59 @@ export function getAnonymousSessionId() {
   return value
 }
 
+type TrafficAttribution = Record<string, string>
+
+function readStoredAttribution(): TrafficAttribution {
+  try {
+    return JSON.parse(sessionStorage.getItem(ATTRIBUTION_STORAGE_KEY) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+export function getTrafficAttribution(): TrafficAttribution {
+  const params = new URLSearchParams(window.location.search)
+  const taggedAttribution: TrafficAttribution = {}
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
+    const value = params.get(key)?.trim()
+    if (value) taggedAttribution[key] = value.slice(0, 100)
+  }
+
+  if (Object.keys(taggedAttribution).length > 0) {
+    taggedAttribution.landing_path = window.location.pathname.slice(0, 200)
+    try {
+      if (document.referrer) {
+        taggedAttribution.referrer_host = new URL(document.referrer).hostname.slice(0, 100)
+      }
+    } catch {
+      // Ignore malformed referrers supplied by the browser.
+    }
+    sessionStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(taggedAttribution))
+    return taggedAttribution
+  }
+
+  const stored = readStoredAttribution()
+  if (Object.keys(stored).length > 0) return stored
+
+  const directAttribution: TrafficAttribution = {
+    utm_source: 'direct',
+    landing_path: window.location.pathname.slice(0, 200),
+  }
+  try {
+    if (document.referrer) {
+      const referrerHost = new URL(document.referrer).hostname.slice(0, 100)
+      if (referrerHost && referrerHost !== window.location.hostname) {
+        directAttribution.utm_source = referrerHost
+        directAttribution.referrer_host = referrerHost
+      }
+    }
+  } catch {
+    // Ignore malformed referrers supplied by the browser.
+  }
+  sessionStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(directAttribution))
+  return directAttribution
+}
+
 export function track(
   event_name: string,
   room_id?: string,
@@ -149,7 +215,7 @@ export function track(
       anonymous_session_id: getAnonymousSessionId(),
       room_id,
       event_name,
-      metadata,
+      metadata: { ...getTrafficAttribution(), ...metadata },
     }),
   }).catch(() => undefined)
 }

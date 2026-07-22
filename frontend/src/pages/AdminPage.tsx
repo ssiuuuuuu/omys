@@ -5,6 +5,7 @@ import {
   DoorOpen,
   Eye,
   KeyRound,
+  Link2,
   LockKeyhole,
   LogOut,
   RefreshCw,
@@ -208,6 +209,53 @@ export default function AdminPage() {
               <p>{detail}</p>
             </article>
           ))}
+        </section>
+
+        <section className="admin-panel">
+          <div className="admin-panel__heading">
+            <div>
+              <Link2 />
+              <div>
+                <h2>유입 경로</h2>
+                <p>UTM 링크 기준 방문 및 주요 행동</p>
+              </div>
+            </div>
+          </div>
+          <div className="admin-table-scroll">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>유입</th>
+                  <th>캠페인</th>
+                  <th>위치</th>
+                  <th>방문자</th>
+                  <th>조회</th>
+                  <th>방 만들기 시작</th>
+                  <th>활동 시작</th>
+                  <th>시작 전환율</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(stats.period.traffic_sources ?? []).map((source) => (
+                  <tr key={`${source.source}:${source.campaign}:${source.content}`}>
+                    <th>{source.source === 'direct' ? '직접 유입' : source.source}</th>
+                    <td>{source.campaign}</td>
+                    <td>{source.content}</td>
+                    <td>{number(source.visitors)}</td>
+                    <td>{number(source.pageviews)}</td>
+                    <td>{number(source.create_starts)}</td>
+                    <td>{number(source.activity_starts)}</td>
+                    <td>{source.conversion_percent}%</td>
+                  </tr>
+                ))}
+                {(stats.period.traffic_sources ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={8}>선택한 기간의 유입 데이터가 없습니다.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="admin-panel">

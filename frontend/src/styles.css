@@ -2604,7 +2604,8 @@ a.status:hover {
   background: #00b896;
 }
 @media (max-width: 760px) {
-  html, body {
+  html,
+  body {
     min-width: 320px;
     min-height: 100dvh;
   }
@@ -2782,14 +2783,16 @@ a.status:hover {
   .mode-switch button.active {
     background: #00b896;
   }
-}@media (max-width: 760px) {
+}
+@media (max-width: 760px) {
   .page--wide .hero .logo {
     position: fixed;
     top: 24px;
     left: 20px;
     z-index: 3;
   }
-}@media (max-width: 760px) {
+}
+@media (max-width: 760px) {
   body {
     background:
       linear-gradient(rgba(230, 250, 245, 0.82), rgba(230, 250, 245, 0.82)),
@@ -2859,7 +2862,9 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: clamp(0px, 3vw, 24px);
-  background: url('/pixel-island.png') center / cover no-repeat, var(--mobile-bg);
+  background:
+    url('/pixel-island.png') center / cover no-repeat,
+    var(--mobile-bg);
 }
 .mobile-home__shade {
   position: absolute;
@@ -2875,6 +2880,27 @@ body {
   font-family: 'Black Han Sans', sans-serif;
   font-size: 24px;
   line-height: 36px;
+}
+.mobile-help-trigger {
+  width: 38px;
+  height: 38px;
+  position: absolute;
+  z-index: 2;
+  top: max(24px, env(safe-area-inset-top));
+  right: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #1f1f1f;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.45));
+  cursor: pointer;
+}
+.mobile-help-trigger svg {
+  width: 22px;
+  height: 22px;
 }
 .mobile-home__content {
   position: absolute;
@@ -2924,6 +2950,7 @@ body {
   margin-top: 16px;
 }
 .mobile-cta--primary {
+  gap: 8px;
   color: #fff;
   background: var(--mobile-primary);
   box-shadow: 0 6px 9px rgba(0, 72, 60, 0.12);
@@ -2936,10 +2963,68 @@ body {
 .mobile-cta--activity {
   min-height: 48px;
   gap: 8px;
+  color: #4b381c;
+  background: #fff8e6;
+  border: 1px solid #eadfc3;
+  box-shadow: 0 6px 12px rgba(83, 58, 24, 0.2);
+}
+.mobile-home .landing-join-trigger {
+  width: 100%;
+  justify-content: center;
+  margin: 14px auto 0;
+  padding: 5px 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+}
+.mobile-home .landing-join-trigger strong {
   color: #fff;
-  background: rgba(0, 72, 60, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(8px);
+  font-weight: 800;
+}
+.usage-modal {
+  max-height: min(82dvh, 720px);
+  overflow-y: auto;
+  text-align: left;
+}
+.usage-modal > .room-code-modal__icon {
+  margin-right: auto;
+  margin-left: 0;
+}
+.usage-modal > h2,
+.usage-modal > p {
+  text-align: left;
+}
+.usage-modal > p {
+  line-height: 1.65;
+}
+.usage-modal__content {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+.usage-modal__content section {
+  padding: 16px;
+  background: rgba(230, 250, 245, 0.72);
+  border: 1px solid var(--mobile-line);
+  border-radius: 14px;
+}
+.usage-modal__content h3 {
+  margin: 0 0 10px;
+  color: var(--mobile-primary-dark);
+  font-size: 15px;
+}
+.usage-modal__content ol,
+.usage-modal__content ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--mobile-ink);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.usage-modal__content li + li {
+  margin-top: 5px;
+}
+.usage-modal__content li ul {
+  margin-top: 5px;
 }
 .mobile-cta:disabled {
   opacity: 0.5;
@@ -3093,6 +3178,7 @@ body {
     margin-block: 24px;
     box-shadow: 0 18px 55px rgba(0, 72, 60, 0.16);
   }
-}.app-shell--mobile .topbar {
+}
+.app-shell--mobile .topbar {
   display: flex;
 }

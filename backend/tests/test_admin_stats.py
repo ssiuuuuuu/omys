@@ -55,6 +55,48 @@ def test_admin_stats_groups_activity_views(client):
     assert body["period"]["totals"]["activity_pageviews"] == 3
 
 
+def test_admin_stats_groups_utm_traffic_and_attributed_actions(client):
+    instagram_metadata = {
+        "utm_source": "instagram",
+        "utm_campaign": "launch",
+        "utm_content": "profile",
+    }
+    events = (
+        ("instagram-a", "landing_view", instagram_metadata),
+        ("instagram-a", "landing_view", instagram_metadata),
+        ("instagram-a", "create_started", instagram_metadata),
+        ("instagram-b", "landing_view", instagram_metadata),
+        ("instagram-b", "activity_tab_opened", instagram_metadata),
+        ("direct-a", "landing_view", {"utm_source": "direct"}),
+    )
+    for session_id, event_name, metadata in events:
+        response = client.post(
+            "/api/analytics",
+            json={
+                "anonymous_session_id": session_id,
+                "event_name": event_name,
+                "metadata": metadata,
+            },
+        )
+        assert response.status_code == 202
+
+    response = client.get("/api/admin/stats?range=6h", headers=admin_headers())
+
+    assert response.status_code == 200
+    sources = response.json()["period"]["traffic_sources"]
+    instagram = next(source for source in sources if source["source"] == "instagram")
+    assert instagram == {
+        "source": "instagram",
+        "campaign": "launch",
+        "content": "profile",
+        "visitors": 2,
+        "pageviews": 3,
+        "create_starts": 1,
+        "activity_starts": 1,
+        "conversion_percent": 50.0,
+    }
+
+
 def test_three_day_stats_use_six_hour_buckets(client):
     response = client.get("/api/admin/stats?range=3d", headers=admin_headers())
 

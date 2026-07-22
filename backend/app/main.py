@@ -17,13 +17,13 @@ from .activities import ACTIVITIES, ACTIVITY_BY_ID, MOODS, choose_activity
 from .config import get_settings
 from .database import Base, engine, get_db
 from .geo import (
-    closest_path_index,
     distance_meters,
     navigation_hint,
     slice_path_ahead,
     travel_distance_meters,
     travel_minutes,
 )
+from .navigation import NavigationRouteState, resolve_navigation_state
 from .models import (
     ActivitySession,
     AnalyticsEvent,
@@ -69,7 +69,6 @@ from .services import (
     NO_CANDIDATE_MESSAGE,
     candidate_from_place,
     lock_selection,
-    navigation_route,
     opening_is_viable,
     place_payload,
 )
@@ -78,6 +77,8 @@ from .services import (
 settings = get_settings()
 EVENTS = {
     "landing_view",
+    "create_started",
+    "room_code_entered",
     "mode_selected",
     "room_created",
     "invite_link_copied",
@@ -111,6 +112,7 @@ STATS_RANGES = {
 }
 ACTIVITY_VIEW_EVENTS = {"activity_tab_opened", "activity_page_view"}
 SHARE_EVENTS = {"result_shared", "activity_shared"}
+ATTRIBUTION_EVENTS = {"landing_view", "create_started", "activity_tab_opened"}
 
 
 @asynccontextmanager
@@ -139,7 +141,7 @@ app.add_middleware(
 )
 
 request_windows: dict[str, deque[float]] = defaultdict(deque)
-navigation_routes: dict[str, tuple[list[tuple[float, float]], int]] = {}
+navigation_routes: dict[str, NavigationRouteState] = {}
 
 
 @app.middleware("http")
@@ -838,48 +840,50 @@ async def navigation(
     if room.status not in {"drawn", "navigating"} or not room.selected_place_id:
         raise HTTPException(409, "이동 중인 방이 아닙니다.")
     place = db.get(PlaceCandidate, room.selected_place_id)
-    remaining = distance_meters(
+    direct_remaining = distance_meters(
         payload.latitude, payload.longitude, place.latitude, place.longitude
     )
-    initial = max(
+    direct_initial = max(
         1,
         distance_meters(
             room.departure_latitude, room.departure_longitude, place.latitude, place.longitude
         ),
     )
     mode = room.condition.transport_mode if room.condition else "walk"
-    reveal_available = not room.hide_until_arrival or remaining <= 100
+    reveal_available = not room.hide_until_arrival or direct_remaining <= 100
 
     origin = (payload.latitude, payload.longitude)
     destination = (place.latitude, place.longitude)
-    cached_route = navigation_routes.get(participant.id)
-    route = cached_route[0] if cached_route else []
-    consumed_index = cached_route[1] if cached_route else 0
-    if not route or route[-1] != destination:
-        route = await navigation_route(origin, destination, mode)
-        consumed_index = 0
-    else:
-        remaining_route = route[consumed_index:]
-        next_index = consumed_index + closest_path_index(
-            remaining_route,
-            payload.latitude,
-            payload.longitude,
-        )
-        nearest = route[next_index]
-        if distance_meters(payload.latitude, payload.longitude, nearest[0], nearest[1]) > 80:
-            route = await navigation_route(origin, destination, mode)
-            consumed_index = 0
-        else:
-            consumed_index = max(consumed_index, next_index)
-    navigation_routes[participant.id] = (route, consumed_index)
+    route_state = navigation_routes.setdefault(participant.id, NavigationRouteState())
+    navigation_snapshot = await resolve_navigation_state(
+        route_state,
+        origin,
+        destination,
+        mode,
+        payload.accuracy,
+    )
 
-    route_ahead = [origin, *route[consumed_index + 1 :]]
     reserve_at_end = 0 if reveal_available else 100
-    visible_route = slice_path_ahead(route_ahead, 300, reserve_at_end)
+    visible_route = slice_path_ahead(
+        navigation_snapshot.path_ahead,
+        300,
+        reserve_at_end,
+    )
+    initial_distance = max(
+        direct_initial,
+        route_state.initial_distance_meters or 0,
+        navigation_snapshot.remaining_meters,
+    )
     response = {
-        "remaining_meters": round(remaining),
-        "eta_minutes": travel_minutes(remaining, mode),
-        "progress_percent": max(0, min(100, round((1 - remaining / initial) * 100))),
+        "remaining_meters": navigation_snapshot.remaining_meters,
+        "eta_minutes": navigation_snapshot.eta_minutes,
+        "progress_percent": max(
+            0,
+            min(
+                100,
+                round((1 - navigation_snapshot.remaining_meters / initial_distance) * 100),
+            ),
+        ),
         "direction": navigation_hint(
             payload.latitude, payload.longitude, place.latitude, place.longitude
         ),
@@ -889,7 +893,8 @@ async def navigation(
         "route_path": [
             {"latitude": latitude, "longitude": longitude} for latitude, longitude in visible_route
         ],
-        "consumed_index": consumed_index,
+        "consumed_index": navigation_snapshot.consumed_index,
+        "route_source": navigation_snapshot.source,
         "message": (
             "목적지 근처에 도착하면 공개할 수 있습니다"
             if room.hide_until_arrival
@@ -1030,10 +1035,39 @@ def stats_period(db: Session, range_name: str) -> dict:
     period_visitors: set[str] = set()
     period_activity_visitors: set[str] = set()
     period_shares = 0
+    traffic_sources: dict[tuple[str, str, str], dict] = {}
     for event in events:
         index = bucket_index(event.created_at)
         if index is None:
             continue
+        if (
+            event.event_name in ATTRIBUTION_EVENTS
+            and event.anonymous_session_id != "server-generated"
+        ):
+            metadata = event.event_metadata or {}
+            source = str(metadata.get("utm_source") or metadata.get("referrer_host") or "direct")
+            campaign = str(metadata.get("utm_campaign") or "-")
+            content = str(metadata.get("utm_content") or "-")
+            source_key = (source, campaign, content)
+            source_stats = traffic_sources.setdefault(
+                source_key,
+                {
+                    "source": source,
+                    "campaign": campaign,
+                    "content": content,
+                    "visitor_ids": set(),
+                    "pageviews": 0,
+                    "create_starter_ids": set(),
+                    "activity_starter_ids": set(),
+                },
+            )
+            if event.event_name == "landing_view":
+                source_stats["visitor_ids"].add(event.anonymous_session_id)
+                source_stats["pageviews"] += 1
+            elif event.event_name == "create_started":
+                source_stats["create_starter_ids"].add(event.anonymous_session_id)
+            elif event.event_name == "activity_tab_opened":
+                source_stats["activity_starter_ids"].add(event.anonymous_session_id)
         if event.event_name == "landing_view" and event.anonymous_session_id != "server-generated":
             buckets[index]["pageviews"] += 1
             visitor_sets[index].add(event.anonymous_session_id)
@@ -1100,6 +1134,25 @@ def stats_period(db: Session, range_name: str) -> dict:
     rooms_created = len(rooms)
     draw_completed = len(selections)
     revealed = len(revealed_rooms)
+    traffic_source_rows = []
+    for source_stats in traffic_sources.values():
+        visitors = len(source_stats["visitor_ids"])
+        create_starts = len(source_stats["create_starter_ids"])
+        traffic_source_rows.append(
+            {
+                "source": source_stats["source"],
+                "campaign": source_stats["campaign"],
+                "content": source_stats["content"],
+                "visitors": visitors,
+                "pageviews": source_stats["pageviews"],
+                "create_starts": create_starts,
+                "activity_starts": len(source_stats["activity_starter_ids"]),
+                "conversion_percent": round(create_starts / visitors * 100, 1) if visitors else 0,
+            }
+        )
+    traffic_source_rows.sort(
+        key=lambda row: (-row["visitors"], -row["pageviews"], row["source"])
+    )
     return {
         "range": range_name,
         "label": config["label"],
@@ -1127,6 +1180,7 @@ def stats_period(db: Session, range_name: str) -> dict:
             },
         },
         "series": buckets,
+        "traffic_sources": traffic_source_rows,
     }
 
 
