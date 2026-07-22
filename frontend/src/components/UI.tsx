@@ -37,34 +37,35 @@ export function Shell({
   return (
     <div className={wide ? 'app-shell app-shell--wide' : 'app-shell app-shell--mobile'}>
       <header className="topbar">
-        {hasNavigation ? (
-          <div className="topbar__actions">
-            {back && (
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => (onBack ? onBack() : navigate(-1))}
-                aria-label={backLabel}
-                title={backLabel}
-              >
-                <ArrowLeft />
-              </button>
-            )}
-            {home && (
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => (onHome ? onHome() : navigate('/', { replace: true }))}
-                aria-label="홈으로"
-                title="홈으로"
-              >
-                <House />
-              </button>
-            )}
-          </div>
-        ) : (
+        <div className="topbar__start">
+          {hasNavigation && (
+            <div className="topbar__actions">
+              {back && (
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => (onBack ? onBack() : navigate(-1))}
+                  aria-label={backLabel}
+                  title={backLabel}
+                >
+                  <ArrowLeft />
+                </button>
+              )}
+              {home && (
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => (onHome ? onHome() : navigate('/', { replace: true }))}
+                  aria-label="홈으로"
+                  title="홈으로"
+                >
+                  <House />
+                </button>
+              )}
+            </div>
+          )}
           <Logo compact />
-        )}
+        </div>
         <span className="topbar__tag">{title ?? '오늘은 어디로?'}</span>
       </header>
       <main className={wide ? 'page page--wide' : 'page'}>{children}</main>
