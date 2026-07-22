@@ -110,14 +110,21 @@ export type KakaoMaps = {
   }
 }
 
+type KakaoShareLink = { mobileWebUrl: string; webUrl: string }
+
 type KakaoShareSdk = {
   init: (appKey: string) => void
   isInitialized: () => boolean
   Share: {
     sendDefault: (options: {
-      objectType: 'text'
-      text: string
-      link: { mobileWebUrl: string; webUrl: string }
+      objectType: 'feed'
+      content: {
+        title: string
+        description: string
+        imageUrl: string
+        link: KakaoShareLink
+      }
+      buttons: { title: string; link: KakaoShareLink }[]
     }) => void
   }
 }
@@ -231,7 +238,7 @@ export async function describeKakaoCoordinates(
 let sharePromise: Promise<KakaoShareSdk> | null = null
 
 function loadKakaoShareSdk(): Promise<KakaoShareSdk> | null {
-  const appKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY?.trim()
+  const appKey = import.meta.env.VITE_KAKAO_SHARE_JAVASCRIPT_KEY?.trim()
   if (!appKey) return null
   if (sharePromise) return sharePromise
 
@@ -261,14 +268,24 @@ function loadKakaoShareSdk(): Promise<KakaoShareSdk> | null {
   return sharePromise
 }
 
-export async function shareToKakaoTalk(text: string, url: string): Promise<void> {
+export async function shareToKakaoTalk(options: {
+  title: string
+  description: string
+  url: string
+}): Promise<void> {
   const pendingSdk = loadKakaoShareSdk()
   if (!pendingSdk) throw new Error('카카오 JavaScript 키가 설정되지 않았어요.')
   const kakao = await pendingSdk
+  const link = { mobileWebUrl: options.url, webUrl: options.url }
   kakao.Share.sendDefault({
-    objectType: 'text',
-    text,
-    link: { mobileWebUrl: url, webUrl: url },
+    objectType: 'feed',
+    content: {
+      title: options.title,
+      description: options.description,
+      imageUrl: `${location.origin}/pixel-island.png`,
+      link,
+    },
+    buttons: [{ title: '참가하기', link }],
   })
 }
 

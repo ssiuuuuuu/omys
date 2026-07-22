@@ -84,10 +84,11 @@ export default function RoomPage() {
     setTimeout(() => setCopied(false), 1800)
   }
   const shareInvite = async () => {
-    const text = `${room?.title ?? '오늘의 비밀 외출'}에 초대할게요! 같이 장소 골라요.`
+    const title = room?.title || 'OMYS 초대'
+    const text = 'OMYS에서 함께 갈 장소를 골라주세요! 두 명 이상 모이면 시작할 수 있어요.'
     const url = `${location.origin}/join/${code}`
     try {
-      await shareToKakaoTalk(text, url)
+      await shareToKakaoTalk({ title, description: text, url })
       track('invite_link_copied')
       return
     } catch {
