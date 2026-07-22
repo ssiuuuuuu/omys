@@ -78,6 +78,19 @@ class AnalyticsCreate(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
+class ActivitySessionCreate(BaseModel):
+    anonymous_session_id: str = Field(min_length=8, max_length=64)
+
+
+class ActivityDraw(BaseModel):
+    mood: Literal["light", "funny", "dopamine"]
+
+
+class ActivityComplete(BaseModel):
+    result: Literal["success", "failure", "abandoned"]
+    party_size: int | None = Field(default=None, ge=1, le=50)
+
+
 class PublicShare(BaseModel):
     title: str
     mode: str

@@ -54,3 +54,7 @@ def require_host(participant: Participant) -> None:
 
 async def token_header(x_participant_token: str | None = Header(default=None)) -> str | None:
     return x_participant_token
+
+
+async def session_token_header(x_session_token: str | None = Header(default=None)) -> str | None:
+    return x_session_token

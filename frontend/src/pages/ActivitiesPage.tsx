@@ -19,6 +19,7 @@ type Activity = {
 type ActivitySession = {
   id: string
   anonymous_session_id: string
+  session_token: string | null
   selected_mood: Mood | null
   current_activity_id: string | null
   previously_drawn_activity_ids: string[]
@@ -39,6 +40,30 @@ const MOODS: Record<Mood, { emoji: string; label: string; description: string }>
 
 const STORAGE_KEY = 'omys:activity-session'
 
+type ActivityCredentials = {
+  id: string
+  token: string
+}
+
+function loadCredentials(): ActivityCredentials | null {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (!stored) return null
+  try {
+    const parsed = JSON.parse(stored) as Partial<ActivityCredentials>
+    if (typeof parsed.id === 'string' && typeof parsed.token === 'string') {
+      return { id: parsed.id, token: parsed.token }
+    }
+  } catch {
+    // The previous version stored only a session id, which cannot pass token validation.
+  }
+  localStorage.removeItem(STORAGE_KEY)
+  return null
+}
+
+function sessionHeaders(token: string) {
+  return { 'X-Session-Token': token }
+}
+
 function resultLabel(result: Result | null) {
   if (result === 'success') return '성공! 🎉'
   if (result === 'failure') return '실패했지만 도전 완료! 🙌'
@@ -54,6 +79,7 @@ export default function ActivitiesPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [session, setSession] = useState<ActivitySession | null>(null)
+  const [sessionToken, setSessionToken] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -67,9 +93,10 @@ export default function ActivitiesPage() {
   }, [])
 
   const saveSession = useCallback(
-    (value: ActivitySession) => {
-      setSession(value)
-      localStorage.setItem(STORAGE_KEY, value.id)
+    (value: ActivitySession, token: string) => {
+      setSession({ ...value, session_token: null })
+      setSessionToken(token)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: value.id, token }))
       const currentId = searchParams.get('session')
       if (currentId !== value.id) navigate(`/activities?session=${value.id}`, { replace: true })
     },
@@ -78,18 +105,24 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     const restore = async () => {
-      const candidateId = searchParams.get('session') || localStorage.getItem(STORAGE_KEY)
-      if (candidateId) {
+      const stored = loadCredentials()
+      const requestedId = searchParams.get('session')
+      const credentials = !requestedId || requestedId === stored?.id ? stored : null
+      if (credentials) {
         try {
-          saveSession(await api<ActivitySession>(`/api/activity-sessions/${candidateId}`))
+          const restored = await api<ActivitySession>(`/api/activity-sessions/${credentials.id}`, {
+            headers: sessionHeaders(credentials.token),
+          })
+          saveSession(restored, credentials.token)
           setLoading(false)
           return
         } catch (err) {
-          if (!(err instanceof ApiError) || err.status !== 404) {
+          if (!(err instanceof ApiError) || ![401, 404].includes(err.status)) {
             setError(err instanceof Error ? err.message : '활동을 불러오지 못했어요.')
             setLoading(false)
             return
           }
+          localStorage.removeItem(STORAGE_KEY)
         }
       }
       try {
@@ -97,7 +130,8 @@ export default function ActivitiesPage() {
           method: 'POST',
           body: JSON.stringify({ anonymous_session_id: getAnonymousSessionId() }),
         })
-        saveSession(created)
+        if (!created.session_token) throw new Error('활동 세션 토큰을 받지 못했어요.')
+        saveSession(created, created.session_token)
       } catch (err) {
         setError(err instanceof Error ? err.message : '활동 세션을 만들지 못했어요.')
       } finally {
@@ -126,15 +160,16 @@ export default function ActivitiesPage() {
   }, [session])
 
   const request = async (action: string, body?: object) => {
-    if (!session) return
+    if (!session || !sessionToken) return
     setBusy(action)
     setError('')
     try {
       const next = await api<ActivitySession>(`/api/activity-sessions/${session.id}/${action}`, {
         method: 'POST',
+        headers: sessionHeaders(sessionToken),
         body: body ? JSON.stringify(body) : undefined,
       })
-      saveSession(next)
+      saveSession(next, sessionToken)
       setChoosingMood(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : '요청을 처리하지 못했어요.')
@@ -151,7 +186,7 @@ export default function ActivitiesPage() {
     return `오늘의 OMYS ${mood.label} 활동 ${mood.emoji}\n${session.activity.title}에 도전했습니다.\n결과는 ${resultLabel(session.result)}${people}\n우리보다 더 잘할 수 있나요?`
   }, [partySize, session])
 
-  const shareUrl = session ? `${location.origin}/activities?session=${session.id}` : location.href
+  const shareUrl = `${location.origin}/activities`
   const share = async () => {
     if (!session?.activity) return
     track('activity_shared', undefined, {

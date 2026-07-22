@@ -21,6 +21,7 @@ describe('OMYS mobile flow', () => {
     expect(screen.getByRole('heading', { name: /목적지는 비밀/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '방 생성' })).toHaveClass('mobile-cta--primary')
     expect(screen.getByRole('button', { name: '방 입장' })).toHaveClass('mobile-cta--secondary')
+    expect(screen.getByRole('button', { name: /활동 뽑기/ })).toHaveClass('mobile-cta--activity')
     expect(screen.getByText('오늘의 장소는 도착할 때까지 비밀이에요.')).toBeInTheDocument()
     expect(screen.queryByText('친구들의 비밀 후보')).not.toBeInTheDocument()
     expect(screen.queryByText('새로고침해도 잠금')).not.toBeInTheDocument()

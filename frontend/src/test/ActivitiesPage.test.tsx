@@ -17,6 +17,7 @@ function session(status = 'choosing', startedAt: string | null = null) {
   return {
     id: 'activity-session-1',
     anonymous_session_id: 'anonymous-activity-user',
+    session_token: null,
     selected_mood: status === 'choosing' ? null : 'dopamine',
     current_activity_id: status === 'choosing' ? null : activity.id,
     previously_drawn_activity_ids: [],
@@ -40,9 +41,11 @@ describe('mystery activities', () => {
         if (url.endsWith('/draw')) current = session('drawn')
         else if (url.endsWith('/start')) current = session('started', new Date().toISOString())
         else if (url.endsWith('/complete')) current = session('completed')
-        const status = options?.method === 'POST' && url.endsWith('/activity-sessions') ? 201 : 200
+        const creating = options?.method === 'POST' && url.endsWith('/activity-sessions')
+        const status = creating ? 201 : 200
+        const responseBody = creating ? { ...current, session_token: 'activity-secret' } : current
         return Promise.resolve(
-          new Response(JSON.stringify(current), {
+          new Response(JSON.stringify(responseBody), {
             status,
             headers: { 'Content-Type': 'application/json' },
           }),
@@ -75,6 +78,10 @@ describe('mystery activities', () => {
     await user.click(screen.getByRole('button', { name: /도파민/ }))
 
     expect(await screen.findByText(activity.title)).toBeInTheDocument()
+    const drawRequest = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input).endsWith('/draw'))
+    expect(new Headers(drawRequest?.[1]?.headers).get('X-Session-Token')).toBe('activity-secret')
     await user.click(screen.getByRole('button', { name: '활동 시작' }))
     expect(await screen.findByText('남은 시간')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '성공했어요' }))
@@ -87,7 +94,10 @@ describe('mystery activities', () => {
     const now = new Date('2026-07-18T12:00:00Z')
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(now)
-    localStorage.setItem('omys:activity-session', 'activity-session-1')
+    localStorage.setItem(
+      'omys:activity-session',
+      JSON.stringify({ id: 'activity-session-1', token: 'activity-secret' }),
+    )
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
@@ -107,6 +117,10 @@ describe('mystery activities', () => {
     )
 
     expect(await screen.findByText('10:00')).toBeInTheDocument()
+    const restoreRequest = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input).includes('/activity-sessions/activity-session-1'))
+    expect(new Headers(restoreRequest?.[1]?.headers).get('X-Session-Token')).toBe('activity-secret')
     await act(async () => vi.advanceTimersByTime(1000))
     expect(screen.getByText('09:59')).toBeInTheDocument()
   })

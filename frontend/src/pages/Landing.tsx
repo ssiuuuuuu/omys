@@ -1,4 +1,4 @@
-import { DoorOpen, X } from 'lucide-react'
+import { DoorOpen, X, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { track } from '../lib/api'
@@ -56,6 +56,16 @@ export default function Landing() {
           onClick={() => setJoinOpen(true)}
         >
           방 입장
+        </button>
+        <button
+          className="mobile-cta mobile-cta--activity"
+          type="button"
+          onClick={() => {
+            track('activity_tab_opened')
+            navigate('/activities')
+          }}
+        >
+          <Zap size={18} /> 활동 뽑기
         </button>
       </section>
 

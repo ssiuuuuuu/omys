@@ -2915,6 +2915,14 @@ body {
   background: rgba(255, 255, 255, 0.92);
   border: 1.5px solid var(--mobile-primary);
 }
+.mobile-cta--activity {
+  min-height: 48px;
+  gap: 8px;
+  color: #fff;
+  background: rgba(0, 72, 60, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(8px);
+}
 .mobile-cta:disabled {
   opacity: 0.5;
 }

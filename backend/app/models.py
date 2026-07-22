@@ -62,9 +62,7 @@ class Room(Base):
 
 class Participant(Base):
     __tablename__ = "participants"
-    __table_args__ = (
-        UniqueConstraint("room_id", "token_hash", name="uq_participant_room_token"),
-    )
+    __table_args__ = (UniqueConstraint("room_id", "token_hash", name="uq_participant_room_token"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     room_id: Mapped[str] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
@@ -161,6 +159,23 @@ class AnalyticsEvent(Base):
     )
     event_name: Mapped[str] = mapped_column(String(40), index=True)
     event_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ActivitySession(Base):
+    __tablename__ = "activity_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    anonymous_session_id: Mapped[str] = mapped_column(String(64), index=True)
+    session_token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    selected_mood: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    current_activity_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    previously_drawn_activity_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="choosing", index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    party_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
