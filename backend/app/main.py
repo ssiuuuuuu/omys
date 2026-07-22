@@ -40,6 +40,8 @@ from .places import (
     is_food_place,
     is_outdoor_place,
     places_provider,
+    resolve_search_query,
+    resolve_search_radius,
 )
 from .schemas import (
     ActivityComplete,
@@ -544,7 +546,11 @@ async def search_places(
         raise HTTPException(422, "지원하지 않는 카테고리입니다.")
     try:
         places = await places_provider.search(
-            q, room.departure_latitude, room.departure_longitude, category
+            resolve_search_query(q),
+            room.departure_latitude,
+            room.departure_longitude,
+            category,
+            radius=resolve_search_radius(category),
         )
     except (httpx.HTTPError, TimeoutError):
         raise HTTPException(
@@ -569,7 +575,8 @@ async def submit_candidate(
         raise HTTPException(409, "지금은 장소를 제출할 수 없습니다.")
     submitted_place = payload.place
     if submitted_place.external_place_id.startswith("kakao:"):
-        kakao_id = submitted_place.external_place_id.removeprefix("kakao:")
+        id_parts = submitted_place.external_place_id.split(":", 4)
+        kakao_id = id_parts[1] if len(id_parts) == 5 else ""
         expected_urls = {
             f"http://place.map.kakao.com/{kakao_id}",
             f"https://place.map.kakao.com/{kakao_id}",

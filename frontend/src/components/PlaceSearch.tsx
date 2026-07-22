@@ -298,16 +298,36 @@ export function PlaceSearch({
                     <p>
                       {place.category} · {formatDistance(place.distance_meters)}
                     </p>
-                    <span
-                      className={
-                        place.open_now || place.is_public_outdoor ? 'status status--open' : 'status'
-                      }
-                    >
-                      <Store size={13} />
-                      {place.open_now || place.is_public_outdoor
-                        ? '영업 확인'
-                        : '영업 정보 확인 필요'}
-                    </span>
+                    {place.place_url ? (
+                      <a
+                        className={
+                          place.open_now || place.is_public_outdoor
+                            ? 'status status--open'
+                            : 'status'
+                        }
+                        href={place.place_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Store size={13} />
+                        {place.open_now || place.is_public_outdoor
+                          ? '영업 확인'
+                          : '영업 정보 확인 필요'}
+                      </a>
+                    ) : (
+                      <span
+                        className={
+                          place.open_now || place.is_public_outdoor
+                            ? 'status status--open'
+                            : 'status'
+                        }
+                      >
+                        <Store size={13} />
+                        {place.open_now || place.is_public_outdoor
+                          ? '영업 확인'
+                          : '영업 정보 확인 필요'}
+                      </span>
+                    )}
                   </div>
                   <Button
                     type="button"

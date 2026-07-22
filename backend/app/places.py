@@ -105,6 +105,10 @@ CATEGORY_MATCH_TERMS = {
         "벽화마을",
         "유람선",
         "크루즈",
+        "야경",
+        "전통시장",
+        "특색",
+        "드라이브",
     ),
     "쇼핑·구경": (
         "쇼핑",
@@ -125,6 +129,11 @@ CATEGORY_MATCH_TERMS = {
         "지하상가",
         "문구",
         "마트",
+        "가구",
+        "인테리어",
+        "식물가게",
+        "꽃집",
+        "전자제품",
     ),
     "데이트코스·이색 체험": (
         "체험",
@@ -168,6 +177,18 @@ FOOD_CATEGORY_TERMS = (
     "디저트",
 )
 
+# Real estate/housing listings (e.g. "궁궐빌라") often carry an OMYS-sounding word in their
+# business name without being a place anyone would visit — exclude the same way food is.
+NON_LEISURE_CATEGORY_TERMS = FOOD_CATEGORY_TERMS + (
+    "부동산",
+    "주거시설",
+    "빌라",
+    "주택",
+    "아파트",
+    "오피스텔",
+    "원룸",
+)
+
 # Places that read as outdoor regardless of OMYS category (a park is "관광·산책", but a
 # campsite or beach might get discovered under other categories too).
 OUTDOOR_TERMS = (
@@ -205,6 +226,50 @@ CATEGORY_PRICE_ESTIMATE = {
 }
 
 
+# Some OMYS activity chip labels (frontend/PlaceSearch.tsx) are descriptive phrases that
+# don't match anything in Kakao's keyword search (it matches fairly literally, not
+# semantically) even though real places for the activity exist. Rewrite those specific
+# labels to a query text that actually returns results, verified against Kakao's API.
+ACTIVITY_QUERY_OVERRIDES = {
+    "VR 체험장": "VR",
+    "일반 노래방": "노래방",
+    "실내 서바이벌": "서바이벌",
+    "추리게임카페": "방탈출",
+    "자전거 타기": "자전거대여",
+    "카트 체험": "카트",
+    "하천 산책로": "산책로",
+    "야경 명소": "야경",
+    "역사 유적지": "유적지",
+    "캠퍼스 산책": "대학교",
+    "레코드숍": "레코드",
+    "캐릭터숍": "캐릭터",
+    "가구·인테리어숍": "인테리어",
+    "대형마트 구경": "대형마트",
+    "교복 대여 체험": "교복대여",
+    "천문대·별 관측": "천문대",
+}
+
+
+def resolve_search_query(query: str) -> str:
+    return ACTIVITY_QUERY_OVERRIDES.get(query.strip(), query)
+
+
+# Tourist/date-course spots are sparser than gyms or shops, so a fixed 10km radius (Kakao's
+# default) leaves smaller/non-metro departure points with too few candidates.
+CATEGORY_RADIUS_METERS = {
+    "게임·실내 놀거리": 10_000,
+    "운동·액티비티": 10_000,
+    "관광·산책": 20_000,
+    "쇼핑·구경": 10_000,
+    "데이트코스·이색 체험": 15_000,
+}
+DEFAULT_SEARCH_RADIUS_METERS = 10_000
+
+
+def resolve_search_radius(category: str | None) -> int:
+    return CATEGORY_RADIUS_METERS.get(category or "", DEFAULT_SEARCH_RADIUS_METERS)
+
+
 def _normalized(value: str) -> str:
     return re.sub(r"[\s·,>/_\-]+", "", value.casefold())
 
@@ -219,16 +284,17 @@ def place_matches_category(place: PlaceResult, category: str | None) -> bool:
     if place.category == category:
         return True
 
-    name = _normalized(place.name)
     provider_category = _normalized(place.category)
     normalized_terms = tuple(_normalized(term) for term in terms)
 
-    # A restaurant whose name happens to contain a search keyword is still a restaurant.
-    if any(_normalized(term) in provider_category for term in FOOD_CATEGORY_TERMS) and not any(
-        term in provider_category for term in normalized_terms
-    ):
+    # Match on Kakao's own category path only, not the free-form business name — a name
+    # containing a keyword by coincidence (a "러닝센터" tutoring franchise, a "궁궐빌라"
+    # apartment) isn't actually the kind of place the category describes.
+    if any(
+        _normalized(term) in provider_category for term in NON_LEISURE_CATEGORY_TERMS
+    ) and not any(term in provider_category for term in normalized_terms):
         return False
-    return any(term in name or term in provider_category for term in normalized_terms)
+    return any(term in provider_category for term in normalized_terms)
 
 
 def _build_category_by_discovery_query() -> dict[str, str]:
@@ -251,17 +317,36 @@ def infer_category(query: str, category: str | None) -> str | None:
     return CATEGORY_BY_DISCOVERY_QUERY.get(_normalized(query))
 
 
+def search_query_matches_provider_category(query: str, place: PlaceResult) -> bool:
+    """Trust Kakao's own category label when the search text literally names it.
+
+    Our OMYS category whitelist can't anticipate every real search (e.g. "카페" isn't
+    one of our 5 categories), so when the query text is itself present in Kakao's
+    controlled category path — not the free-form business name — treat it as relevant
+    regardless of which OMYS category chip happens to be selected.
+    """
+    query_norm = _normalized(query)
+    if not query_norm:
+        return False
+    return query_norm in _normalized(place.category)
+
+
 def query_matches_place(query: str, place: PlaceResult) -> bool:
     """Fallback relevance check for free-text queries with no resolvable category.
 
     Kakao's keyword search does its own (loose) server-side matching, so unrelated
     popular chains can leak into results for a specific query like "보드게임카페". Require
-    the query text itself to actually appear in the result's name or category.
+    the query text itself to actually appear in the result's name or category. Unlike
+    `place_matches_category`, this runs when no OMYS category was resolvable at all, so
+    there's no keyword whitelist to fall back on — the literal query text is all we have.
     """
     query_norm = _normalized(query)
     if not query_norm:
         return True
-    return query_norm in _normalized(place.name) or query_norm in _normalized(place.category)
+    provider_category = _normalized(place.category)
+    if any(_normalized(term) in provider_category for term in NON_LEISURE_CATEGORY_TERMS):
+        return False
+    return query_norm in _normalized(place.name) or query_norm in provider_category
 
 
 def is_food_place(place: PlaceResult) -> bool:
@@ -727,7 +812,12 @@ class CachedPlacesProvider(PlacesProvider):
             )
         effective_category = infer_category(query, category)
         if effective_category in CATEGORY_MATCH_TERMS:
-            result = [place for place in result if place_matches_category(place, effective_category)]
+            result = [
+                place
+                for place in result
+                if place_matches_category(place, effective_category)
+                or search_query_matches_provider_category(query, place)
+            ]
         elif query.strip():
             result = [place for place in result if query_matches_place(query, place)]
         self.cache[key] = (time.monotonic() + self.ttl, result)

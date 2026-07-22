@@ -1171,6 +1171,13 @@ select:focus {
   margin-top: 5px;
   color: #9a7c41;
   font-size: 9px;
+  text-decoration: none;
+}
+a.status {
+  cursor: pointer;
+}
+a.status:hover {
+  text-decoration: underline;
 }
 .status--open {
   color: #1d996c;
