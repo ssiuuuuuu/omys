@@ -861,6 +861,11 @@ select:focus {
 .invite-card div {
   overflow: hidden;
 }
+.invite-card__actions {
+  display: flex;
+  gap: 8px;
+  overflow: visible;
+}
 .invite-card small {
   display: block;
   color: #dcd8ff;
@@ -1144,6 +1149,12 @@ select:focus {
   background: #cff4ea;
   border-radius: 13px;
 }
+a.place-card__icon {
+  cursor: pointer;
+}
+a.place-card__icon:hover {
+  background: #b8ecdd;
+}
 .place-card__body {
   min-width: 0;
 }
@@ -1171,6 +1182,13 @@ select:focus {
   margin-top: 5px;
   color: #9a7c41;
   font-size: 9px;
+  text-decoration: none;
+}
+a.status {
+  cursor: pointer;
+}
+a.status:hover {
+  text-decoration: underline;
 }
 .status--open {
   color: #1d996c;

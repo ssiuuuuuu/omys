@@ -8,6 +8,7 @@ import {
   Navigation,
   PartyPopper,
   RefreshCw,
+  Share2,
   ShieldCheck,
   Sparkles,
   Users,
@@ -76,6 +77,22 @@ export default function RoomPage() {
     setCopied(true)
     track('invite_link_copied')
     setTimeout(() => setCopied(false), 1800)
+  }
+  const shareInvite = async () => {
+    if (!navigator.share) {
+      await copyInvite()
+      return
+    }
+    try {
+      await navigator.share({
+        title: room?.title || 'OMYS 초대',
+        text: `${room?.title ?? '오늘의 비밀 외출'}에 초대할게요! 같이 장소 골라요.`,
+        url: `${location.origin}/join/${code}`,
+      })
+      track('invite_link_copied')
+    } catch {
+      // 사용자가 공유 시트를 취소한 경우 등 — 조용히 무시.
+    }
   }
   if (loading)
     return (
@@ -180,9 +197,14 @@ export default function RoomPage() {
                 {location.origin.replace(/^https?:\/\//, '')}/join/{code}
               </strong>
             </div>
-            <Button variant="secondary" onClick={copyInvite}>
-              {copied ? <Check size={18} /> : <Clipboard size={18} />} {copied ? '복사됨' : '복사'}
-            </Button>
+            <div className="invite-card__actions">
+              <Button variant="secondary" onClick={copyInvite}>
+                {copied ? <Check size={18} /> : <Clipboard size={18} />} {copied ? '복사됨' : '복사'}
+              </Button>
+              <Button variant="secondary" onClick={() => void shareInvite()}>
+                <Share2 size={18} /> 공유
+              </Button>
+            </div>
           </section>
           <section className="participants-card">
             <div className="section-row">

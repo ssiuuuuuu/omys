@@ -40,6 +40,8 @@ from .places import (
     is_food_place,
     is_outdoor_place,
     places_provider,
+    resolve_search_query,
+    resolve_search_radius,
 )
 from .schemas import (
     ActivityComplete,
@@ -81,6 +83,7 @@ EVENTS = {
     "invite_link_copied",
     "participant_joined",
     "place_submitted",
+    "place_candidate_removed",
     "draw_started",
     "spot_selected",
     "navigation_started",
@@ -544,7 +547,11 @@ async def search_places(
         raise HTTPException(422, "지원하지 않는 카테고리입니다.")
     try:
         places = await places_provider.search(
-            q, room.departure_latitude, room.departure_longitude, category
+            resolve_search_query(q),
+            room.departure_latitude,
+            room.departure_longitude,
+            category,
+            radius=resolve_search_radius(category),
         )
     except (httpx.HTTPError, TimeoutError):
         raise HTTPException(
@@ -569,7 +576,8 @@ async def submit_candidate(
         raise HTTPException(409, "지금은 장소를 제출할 수 없습니다.")
     submitted_place = payload.place
     if submitted_place.external_place_id.startswith("kakao:"):
-        kakao_id = submitted_place.external_place_id.removeprefix("kakao:")
+        id_parts = submitted_place.external_place_id.split(":", 4)
+        kakao_id = id_parts[1] if len(id_parts) == 5 else ""
         expected_urls = {
             f"http://place.map.kakao.com/{kakao_id}",
             f"https://place.map.kakao.com/{kakao_id}",
@@ -605,6 +613,34 @@ async def submit_candidate(
         db.rollback()
         raise HTTPException(409, "이미 제출한 장소입니다.")
     return {"candidate": place_payload(candidate)}
+
+
+@app.delete("/api/rooms/{code}/candidates/{external_place_id}", status_code=200)
+def cancel_candidate(
+    code: str,
+    external_place_id: str,
+    token: str | None = Depends(token_header),
+    db: Session = Depends(get_db),
+):
+    room = room_by_code(db, code)
+    participant = get_participant(db, room, token)
+    if room.mode != "friends" or room.status != "waiting":
+        raise HTTPException(409, "지금은 장소를 취소할 수 없습니다.")
+    candidate = db.scalar(
+        select(PlaceCandidate).where(
+            PlaceCandidate.room_id == room.id,
+            PlaceCandidate.participant_id == participant.id,
+            PlaceCandidate.external_place_id == external_place_id,
+        )
+    )
+    if not candidate:
+        raise HTTPException(404, "제출한 장소를 찾을 수 없습니다.")
+    db.delete(candidate)
+    if participant.submission_completed:
+        participant.submission_completed = False
+    add_event(db, "place_candidate_removed", room.id)
+    db.commit()
+    return {"removed": True}
 
 
 @app.post("/api/rooms/{code}/submission/complete")

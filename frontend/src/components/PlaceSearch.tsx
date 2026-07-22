@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, MapPin, Search, Store } from 'lucide-react'
+import { MapPin, Search, Store, X } from 'lucide-react'
 import { api, formatDistance, type Place } from '../lib/api'
 import { Button, Notice } from './UI'
 
@@ -142,6 +142,7 @@ export function PlaceSearch({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState('')
+  const [removing, setRemoving] = useState('')
 
   const search = async (searchQuery: string, chosenCategory = category) => {
     setLoading(true)
@@ -191,6 +192,23 @@ export function PlaceSearch({
       setError(err instanceof Error ? err.message : '장소를 담지 못했어요.')
     } finally {
       setAdding('')
+    }
+  }
+
+  const cancel = async (place: Place) => {
+    setRemoving(place.external_place_id)
+    setError('')
+    try {
+      await api(
+        `/api/rooms/${code}/candidates/${encodeURIComponent(place.external_place_id)}`,
+        { method: 'DELETE' },
+        token,
+      )
+      onSubmitted()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '취소하지 못했어요.')
+    } finally {
+      setRemoving('')
     }
   }
 
@@ -290,34 +308,76 @@ export function PlaceSearch({
               )
               return (
                 <article className="place-card" key={place.external_place_id}>
-                  <span className="place-card__icon">
-                    <MapPin />
-                  </span>
+                  {place.place_url ? (
+                    <a
+                      className="place-card__icon"
+                      href={place.place_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${place.name} 카카오맵에서 보기`}
+                    >
+                      <MapPin />
+                    </a>
+                  ) : (
+                    <span className="place-card__icon">
+                      <MapPin />
+                    </span>
+                  )}
                   <div className="place-card__body">
                     <h3>{place.name}</h3>
                     <p>
                       {place.category} · {formatDistance(place.distance_meters)}
                     </p>
-                    <span
-                      className={
-                        place.open_now || place.is_public_outdoor ? 'status status--open' : 'status'
-                      }
-                    >
-                      <Store size={13} />
-                      {place.open_now || place.is_public_outdoor
-                        ? '영업 확인'
-                        : '영업 정보 확인 필요'}
-                    </span>
+                    {place.place_url ? (
+                      <a
+                        className={
+                          place.open_now || place.is_public_outdoor
+                            ? 'status status--open'
+                            : 'status'
+                        }
+                        href={place.place_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Store size={13} />
+                        {place.open_now || place.is_public_outdoor
+                          ? '영업 확인'
+                          : '영업 정보 확인 필요'}
+                      </a>
+                    ) : (
+                      <span
+                        className={
+                          place.open_now || place.is_public_outdoor
+                            ? 'status status--open'
+                            : 'status'
+                        }
+                      >
+                        <Store size={13} />
+                        {place.open_now || place.is_public_outdoor
+                          ? '영업 확인'
+                          : '영업 정보 확인 필요'}
+                      </span>
+                    )}
                   </div>
-                  <Button
-                    type="button"
-                    variant={exists ? 'ghost' : 'secondary'}
-                    disabled={exists}
-                    loading={adding === place.external_place_id}
-                    onClick={() => add(place)}
-                  >
-                    {exists ? <Check size={18} /> : '담기'}
-                  </Button>
+                  {exists ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      loading={removing === place.external_place_id}
+                      onClick={() => cancel(place)}
+                    >
+                      <X size={18} /> 취소
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={adding === place.external_place_id}
+                      onClick={() => add(place)}
+                    >
+                      담기
+                    </Button>
+                  )}
                 </article>
               )
             })}
