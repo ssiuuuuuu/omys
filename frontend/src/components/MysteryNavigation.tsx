@@ -245,13 +245,11 @@ function renderVisibleRoute(
 export function MysteryNavigation({
   code,
   token,
-  isHost,
   hideUntilArrival,
   onReveal,
 }: {
   code: string
   token: string
-  isHost: boolean
   hideUntilArrival: boolean
   onReveal: () => void
 }) {
@@ -445,7 +443,7 @@ export function MysteryNavigation({
     marker.setVisible(visible)
   }, [nav, hideUntilArrival, mapReady])
 
-  const reveal = async (manual = false, testAdminKey?: string) => {
+  const reveal = async (testAdminKey?: string) => {
     setRevealing(true)
     try {
       await api(
@@ -455,13 +453,11 @@ export function MysteryNavigation({
           body: JSON.stringify(
             testAdminKey
               ? { admin_key: testAdminKey }
-              : manual
-                ? { manual_confirm: true }
-                : {
-                    latitude: position?.coords.latitude,
-                    longitude: position?.coords.longitude,
-                    accuracy: position?.coords.accuracy,
-                  },
+              : {
+                  latitude: position?.coords.latitude,
+                  longitude: position?.coords.longitude,
+                  accuracy: position?.coords.accuracy,
+                },
           ),
         },
         token,
@@ -529,7 +525,7 @@ export function MysteryNavigation({
         </div>
         {geoError && <Notice tone="warning">{geoError}</Notice>}
         <Button
-          onClick={() => reveal(false)}
+          onClick={() => reveal()}
           loading={revealing}
           disabled={hideUntilArrival && !nav?.reveal_available}
         >
@@ -538,17 +534,12 @@ export function MysteryNavigation({
         {hideUntilArrival && !nav?.reveal_available && (
           <small className="center-copy">목적지 100m 안에 도착하면 열려요</small>
         )}
-        {isHost && geoError && (
-          <button className="text-button" onClick={() => reveal(true)}>
-            위치 없이 수동 공개하기
-          </button>
-        )}
         <details className="test-admin-reveal">
           <summary>테스트용 목적지 확인</summary>
           <form
             onSubmit={(event) => {
               event.preventDefault()
-              void reveal(false, adminKey.trim())
+              void reveal(adminKey.trim())
             }}
           >
             <label htmlFor="navigation-admin-key">관리자 키</label>

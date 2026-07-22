@@ -195,11 +195,11 @@ describe('MysteryNavigation map geometry', () => {
       <MysteryNavigation
         code="ROOM123"
         token="participant-token"
-        isHost={false}
         hideUntilArrival
         onReveal={onReveal}
       />,
     )
+    expect(screen.queryByText('위치 없이 수동 공개하기')).not.toBeInTheDocument()
     await user.click(screen.getByText('테스트용 목적지 확인'))
     await user.type(screen.getByLabelText('관리자 키'), '1210')
     await user.click(screen.getByRole('button', { name: '목적지 보기' }))

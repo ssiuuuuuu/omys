@@ -122,7 +122,6 @@ export default function RoomPage() {
         <MysteryNavigation
           code={code}
           token={token}
-          isHost={room.is_host}
           hideUntilArrival={room.hide_until_arrival}
           onReveal={refresh}
         />

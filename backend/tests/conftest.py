@@ -4,6 +4,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_omys.db")
 os.environ.setdefault("PLACES_PROVIDER", "mock")
 os.environ.setdefault("ADMIN_API_KEY", "change-me-before-production")
+os.environ.setdefault("NAVIGATION_ADMIN_KEY", "1210")
 
 import pytest
 from fastapi.testclient import TestClient

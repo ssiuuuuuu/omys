@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -921,7 +922,10 @@ def reveal(
     if room.status not in {"drawn", "navigating"} or not room.selected_place_id:
         raise HTTPException(409, "공개할 수 없는 상태입니다.")
     place = db.get(PlaceCandidate, room.selected_place_id)
-    if payload.manual_confirm:
+    if payload.admin_key is not None:
+        if not secrets.compare_digest(payload.admin_key, settings.navigation_admin_key):
+            raise HTTPException(403, "관리자 키가 올바르지 않습니다.")
+    elif payload.manual_confirm:
         require_host(participant)
     elif room.hide_until_arrival:
         if payload.latitude is None or payload.longitude is None:

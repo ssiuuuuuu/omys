@@ -142,7 +142,7 @@ def test_conditions_reject_unsupported_category(client):
     assert "지원하지 않는 카테고리" in response.json()["detail"]
 
 
-def test_destination_can_be_revealed_by_button_without_arrival(client):
+def test_destination_can_be_revealed_with_navigation_admin_key(client):
     host = create_omys(client, hide_until_arrival=False)
     code = host["invite_code"]
     headers = auth(host["participant_token"])
@@ -161,7 +161,14 @@ def test_destination_can_be_revealed_by_button_without_arrival(client):
     assert response.json()["hide_until_arrival"] is False
     assert response.json()["selected_place"] is None
 
-    reveal = client.post(f"/api/rooms/{code}/reveal", headers=headers, json={})
+    wrong_key = client.post(
+        f"/api/rooms/{code}/reveal", headers=headers, json={"admin_key": "9999"}
+    )
+    assert wrong_key.status_code == 403
+
+    reveal = client.post(
+        f"/api/rooms/{code}/reveal", headers=headers, json={"admin_key": "1210"}
+    )
     assert reveal.status_code == 200, reveal.text
     assert reveal.json()["selected_place"]["name"]
 
