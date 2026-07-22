@@ -20,6 +20,7 @@ import { PlaceSearch } from '../components/PlaceSearch'
 import { Conditions } from '../components/Conditions'
 import { MysteryNavigation } from '../components/MysteryNavigation'
 import { ResultCard } from '../components/ResultCard'
+import { shareToKakaoTalk } from '../lib/kakao'
 
 export default function RoomPage() {
   const { code = '' } = useParams()
@@ -72,6 +73,10 @@ export default function RoomPage() {
     await action('draw')
     setDrawing(false)
   }
+  const goHome = () => {
+    resetLocalSession()
+    navigate('/', { replace: true })
+  }
   const copyInvite = async () => {
     await navigator.clipboard.writeText(`${location.origin}/join/${code}`)
     setCopied(true)
@@ -79,20 +84,25 @@ export default function RoomPage() {
     setTimeout(() => setCopied(false), 1800)
   }
   const shareInvite = async () => {
-    if (!navigator.share) {
-      await copyInvite()
+    const text = `${room?.title ?? '오늘의 비밀 외출'}에 초대할게요! 같이 장소 골라요.`
+    const url = `${location.origin}/join/${code}`
+    try {
+      await shareToKakaoTalk(text, url)
+      track('invite_link_copied')
+      return
+    } catch {
+      // 카카오 JS 키 미설정 등 — 다음 방법으로 폴백.
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: room?.title || 'OMYS 초대', text, url })
+        track('invite_link_copied')
+      } catch {
+        // 사용자가 공유 시트를 취소한 경우 등 — 조용히 무시.
+      }
       return
     }
-    try {
-      await navigator.share({
-        title: room?.title || 'OMYS 초대',
-        text: `${room?.title ?? '오늘의 비밀 외출'}에 초대할게요! 같이 장소 골라요.`,
-        url: `${location.origin}/join/${code}`,
-      })
-      track('invite_link_copied')
-    } catch {
-      // 사용자가 공유 시트를 취소한 경우 등 — 조용히 무시.
-    }
+    await copyInvite()
   }
   if (loading)
     return (
@@ -112,13 +122,13 @@ export default function RoomPage() {
     )
   if (room.status === 'revealed' && room.selected_place)
     return (
-      <Shell>
+      <Shell home onHome={goHome}>
         <ResultCard room={room} />
       </Shell>
     )
   if (room.status === 'navigating' && (room.mode === 'omys' || room.hide_until_arrival))
     return (
-      <Shell>
+      <Shell back>
         <MysteryNavigation
           code={code}
           token={token}
@@ -157,15 +167,11 @@ export default function RoomPage() {
     if (confirm('위치 확인 없이 모든 참가자에게 장소를 공개할까요?'))
       void action('reveal', { manual_confirm: true })
   }
-  const goHome = () => {
-    resetLocalSession()
-    navigate('/', { replace: true })
-  }
   const goToStepOne = () => navigate(`/create?mode=${room.mode}`)
   return (
     <Shell
       title={room.status === 'waiting' ? '대기실' : room.status === 'drawn' ? '오늘의 가이드' : '이동 중…'}
-      home={room.status === 'waiting'}
+      home={room.status === 'waiting' || room.status === 'drawn'}
       onHome={goHome}
       back={room.status === 'waiting'}
       backLabel="STEP 1로 돌아가기"
@@ -198,11 +204,21 @@ export default function RoomPage() {
               </strong>
             </div>
             <div className="invite-card__actions">
-              <Button variant="secondary" onClick={copyInvite}>
-                {copied ? <Check size={18} /> : <Clipboard size={18} />} {copied ? '복사됨' : '복사'}
+              <Button
+                variant="secondary"
+                className="invite-card__icon-button"
+                aria-label={copied ? '복사됨' : '초대 링크 복사'}
+                onClick={copyInvite}
+              >
+                {copied ? <Check size={18} /> : <Clipboard size={18} />}
               </Button>
-              <Button variant="secondary" onClick={() => void shareInvite()}>
-                <Share2 size={18} /> 공유
+              <Button
+                variant="secondary"
+                className="invite-card__icon-button"
+                aria-label="초대 링크 공유"
+                onClick={() => void shareInvite()}
+              >
+                <Share2 size={18} />
               </Button>
             </div>
           </section>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MapPin, Search, Store, X } from 'lucide-react'
+import { Check, MapPin, Search, Store, X } from 'lucide-react'
 import { api, formatDistance, type Place } from '../lib/api'
 import { Button, Notice } from './UI'
 
@@ -307,7 +307,10 @@ export function PlaceSearch({
                 (item) => item.external_place_id === place.external_place_id,
               )
               return (
-                <article className="place-card" key={place.external_place_id}>
+                <article
+                  className={exists ? 'place-card place-card--added' : 'place-card'}
+                  key={place.external_place_id}
+                >
                   {place.place_url ? (
                     <a
                       className="place-card__icon"
@@ -324,7 +327,14 @@ export function PlaceSearch({
                     </span>
                   )}
                   <div className="place-card__body">
-                    <h3>{place.name}</h3>
+                    <h3>
+                      <span className="place-card__name">{place.name}</span>
+                      {exists && (
+                        <span className="place-card__added-badge">
+                          <Check size={12} /> 담김
+                        </span>
+                      )}
+                    </h3>
                     <p>
                       {place.category} · {formatDistance(place.distance_meters)}
                     </p>
@@ -363,6 +373,7 @@ export function PlaceSearch({
                     <Button
                       type="button"
                       variant="ghost"
+                      className="place-card__cancel"
                       loading={removing === place.external_place_id}
                       onClick={() => cancel(place)}
                     >

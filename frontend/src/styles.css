@@ -866,6 +866,11 @@ select:focus {
   gap: 8px;
   overflow: visible;
 }
+.invite-card__icon-button {
+  padding: 0;
+  width: 42px;
+  flex-shrink: 0;
+}
 .invite-card small {
   display: block;
   color: #dcd8ff;
@@ -1140,6 +1145,29 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 16px;
 }
+.place-card--added {
+  background: #f1fbf7;
+  border-color: #00b896;
+}
+.place-card__added-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #00b896;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.place-card__cancel {
+  color: #c03a4c;
+  border-color: #f3c6cc;
+}
+.place-card__cancel:hover {
+  background: #fff0f2;
+}
 .place-card__icon {
   width: 42px;
   height: 42px;
@@ -1159,11 +1187,18 @@ a.place-card__icon:hover {
   min-width: 0;
 }
 .place-card h3 {
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 3px;
   font-size: 13px;
+  min-width: 0;
+}
+.place-card__name {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .place-card p {
   margin: 0;
@@ -2793,7 +2828,7 @@ a.status:hover {
   body {
     background:
       linear-gradient(rgba(230, 250, 245, 0.82), rgba(230, 250, 245, 0.82)),
-      url('/pixel-island.png') center top / cover fixed,
+      url('/pixel-island.png') center top / cover,
       #e6faf5;
   }
   .page:not(.page--wide) {
@@ -2851,7 +2886,7 @@ body {
   color: var(--mobile-ink);
   background:
     linear-gradient(rgba(230, 250, 245, 0.84), rgba(230, 250, 245, 0.84)),
-    url('/pixel-island.png') center / cover fixed,
+    url('/pixel-island.png') center / cover,
     var(--mobile-bg);
 }
 .mobile-home {
@@ -2962,20 +2997,17 @@ body {
   letter-spacing: 0;
 }
 .app-shell--mobile .topbar__actions {
-  gap: 0;
+  gap: 6px;
 }
 .app-shell--mobile .icon-button {
-  width: 24px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   color: var(--mobile-primary-dark);
   background: transparent;
   border: 0;
 }
 .app-shell--mobile .icon-button svg {
   width: 22px;
-}
-.app-shell--mobile .topbar__actions .icon-button + .icon-button {
-  display: none;
 }
 .app-shell--mobile .page {
   width: 100%;
