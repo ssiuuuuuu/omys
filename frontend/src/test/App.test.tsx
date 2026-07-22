@@ -22,13 +22,37 @@ describe('OMYS mobile flow', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: /목적지는 비밀/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '방 생성' })).toHaveClass('mobile-cta--primary')
-    expect(screen.getByRole('button', { name: '방 입장' })).toHaveClass('mobile-cta--secondary')
+    const createButton = screen.getByRole('button', { name: '방 생성' })
+    expect(createButton).toHaveClass('mobile-cta--primary')
+    expect(createButton.querySelector('svg')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /활동 뽑기/ })).toHaveClass('mobile-cta--activity')
+    expect(screen.getByRole('button', { name: /방 코드로 입장하기/ })).toHaveClass(
+      'landing-join-trigger',
+    )
+    expect(screen.getByRole('button', { name: '사용법 열기' })).toHaveClass('mobile-help-trigger')
     expect(screen.getByText('오늘의 장소는 도착할 때까지 비밀이에요.')).toBeInTheDocument()
     expect(screen.queryByText('친구들의 비밀 후보')).not.toBeInTheDocument()
     expect(screen.queryByText('새로고침해도 잠금')).not.toBeInTheDocument()
     expect(screen.queryByText('도착 순간 공개')).not.toBeInTheDocument()
+  })
+
+  it('opens the restored usage guide from the help button', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '사용법 열기' }))
+
+    expect(screen.getByRole('dialog', { name: 'OMYS 사용법' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '친구들과 시작하기' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'OMYS가 골라주기' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '할 거 없을 때' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '사용법 닫기' }))
+    expect(screen.queryByRole('dialog', { name: 'OMYS 사용법' })).not.toBeInTheDocument()
   })
 
   it('starts a fresh activity session when re-entering from home', async () => {
@@ -60,7 +84,7 @@ describe('OMYS mobile flow', () => {
       </MemoryRouter>,
     )
 
-    await user.click(screen.getByRole('button', { name: '방 입장' }))
+    await user.click(screen.getByRole('button', { name: /방 코드로 입장하기/ }))
     expect(screen.getByRole('dialog', { name: '방 코드로 입장하기' })).toBeInTheDocument()
     const codeInput = screen.getByLabelText('방 코드')
     await user.type(codeInput, 'ab-12cd3')
