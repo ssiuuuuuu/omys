@@ -110,9 +110,22 @@ export type KakaoMaps = {
   }
 }
 
+type KakaoShareSdk = {
+  init: (appKey: string) => void
+  isInitialized: () => boolean
+  Share: {
+    sendDefault: (options: {
+      objectType: 'text'
+      text: string
+      link: { mobileWebUrl: string; webUrl: string }
+    }) => void
+  }
+}
+
 declare global {
   interface Window {
     kakao?: { maps: KakaoMaps }
+    Kakao?: KakaoShareSdk
   }
 }
 
@@ -212,6 +225,50 @@ export async function describeKakaoCoordinates(
         longitude,
       })
     })
+  })
+}
+
+let sharePromise: Promise<KakaoShareSdk> | null = null
+
+function loadKakaoShareSdk(): Promise<KakaoShareSdk> | null {
+  const appKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY?.trim()
+  if (!appKey) return null
+  if (sharePromise) return sharePromise
+
+  sharePromise = new Promise((resolve, reject) => {
+    const ready = () => {
+      if (!window.Kakao) {
+        reject(new Error('카카오톡 공유 기능을 사용할 수 없어요.'))
+        return
+      }
+      if (!window.Kakao.isInitialized()) window.Kakao.init(appKey)
+      resolve(window.Kakao)
+    }
+
+    if (window.Kakao) {
+      ready()
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js'
+    script.async = true
+    script.onload = ready
+    script.onerror = () => reject(new Error('카카오톡 공유 SDK를 불러오지 못했어요.'))
+    document.head.appendChild(script)
+  })
+
+  return sharePromise
+}
+
+export async function shareToKakaoTalk(text: string, url: string): Promise<void> {
+  const pendingSdk = loadKakaoShareSdk()
+  if (!pendingSdk) throw new Error('카카오 JavaScript 키가 설정되지 않았어요.')
+  const kakao = await pendingSdk
+  kakao.Share.sendDefault({
+    objectType: 'text',
+    text,
+    link: { mobileWebUrl: url, webUrl: url },
   })
 }
 
