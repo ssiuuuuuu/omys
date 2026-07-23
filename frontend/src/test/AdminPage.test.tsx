@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,7 +18,12 @@ function stats(range = '6h') {
     conversion: { room_to_draw_percent: 40, draw_to_reveal_percent: 50 },
     period: {
       range,
-      label: range === '3d' ? '최근 3일' : `최근 ${range.replace('h', '시간')}`,
+      label:
+        range === 'custom'
+          ? '07/20 09:00 ~ 07/20 12:00'
+          : range === '3d'
+            ? '최근 3일'
+            : `최근 ${range.replace('h', '시간')}`,
       timezone: 'Asia/Seoul',
       bucket_hours: range === '3d' ? 6 : 1,
       start: '2026-07-20T08:00:00+09:00',
@@ -114,5 +119,25 @@ describe('admin analytics dashboard', () => {
     await user.click(screen.getByRole('button', { name: '3일' }))
     await waitFor(() => expect(screen.getByLabelText('최근 3일 요약')).toBeInTheDocument())
     expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toContain('range=3d')
+
+    await user.click(screen.getByRole('button', { name: '직접 설정' }))
+    fireEvent.change(screen.getByLabelText('시작 시각'), {
+      target: { value: '2026-07-20T09:00' },
+    })
+    fireEvent.change(screen.getByLabelText('종료 시각'), {
+      target: { value: '2026-07-20T12:00' },
+    })
+    await user.click(screen.getByRole('button', { name: '이 구간 보기' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('07/20 09:00 ~ 07/20 12:00 요약')).toBeInTheDocument(),
+    )
+    const customRequest = new URL(
+      String(vi.mocked(fetch).mock.calls.at(-1)?.[0]),
+      'http://localhost',
+    )
+    expect(customRequest.searchParams.get('range')).toBe('custom')
+    expect(customRequest.searchParams.get('start')).toBe('2026-07-20T09:00:00+09:00')
+    expect(customRequest.searchParams.get('end')).toBe('2026-07-20T12:00:00+09:00')
   })
 })

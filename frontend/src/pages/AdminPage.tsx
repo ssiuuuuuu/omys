@@ -25,43 +25,71 @@ const RANGES: { value: StatsRange; label: string }[] = [
   { value: '12h', label: '12시간' },
   { value: '24h', label: '24시간' },
   { value: '3d', label: '3일' },
+  { value: 'custom', label: '직접 설정' },
 ]
 
 function number(value: number) {
   return new Intl.NumberFormat('ko-KR').format(value)
 }
 
+function kstInputValue(date: Date) {
+  const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  return kstDate.toISOString().slice(0, 16)
+}
+
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem(ADMIN_KEY_STORAGE) ?? '')
   const [keyInput, setKeyInput] = useState(adminKey)
   const [range, setRange] = useState<StatsRange>('6h')
+  const [customStart, setCustomStart] = useState(() =>
+    kstInputValue(new Date(Date.now() - 6 * 60 * 60 * 1000)),
+  )
+  const [customEnd, setCustomEnd] = useState(() => kstInputValue(new Date()))
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const load = useCallback(async (key: string, selectedRange: StatsRange) => {
-    if (!key) return
-    setLoading(true)
-    setError('')
-    try {
-      setStats(await getAdminStats(key, selectedRange))
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        sessionStorage.removeItem(ADMIN_KEY_STORAGE)
-        setAdminKey('')
-        setStats(null)
-        setError('관리자 키가 올바르지 않습니다.')
-      } else {
-        setError(err instanceof Error ? err.message : '통계를 불러오지 못했습니다.')
+  const load = useCallback(
+    async (key: string, selectedRange: StatsRange, start?: string, end?: string) => {
+      if (!key) return
+      setLoading(true)
+      setError('')
+      try {
+        setStats(
+          await getAdminStats(
+            key,
+            selectedRange,
+            selectedRange === 'custom' && start && end ? { start, end } : undefined,
+          ),
+        )
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 403) {
+          sessionStorage.removeItem(ADMIN_KEY_STORAGE)
+          setAdminKey('')
+          setStats(null)
+          setError('관리자 키가 올바르지 않습니다.')
+        } else {
+          setError(err instanceof Error ? err.message : '통계를 불러오지 못했습니다.')
+        }
+      } finally {
+        setLoading(false)
       }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    },
+    [],
+  )
 
   useEffect(() => {
-    if (adminKey) void load(adminKey, range)
+    if (adminKey && range !== 'custom') void load(adminKey, range)
   }, [adminKey, load, range])
+
+  const applyCustomRange = (event: FormEvent) => {
+    event.preventDefault()
+    if (!customStart || !customEnd || customStart >= customEnd) {
+      setError('종료 시각은 시작 시각보다 늦어야 합니다.')
+      return
+    }
+    void load(adminKey, 'custom', customStart, customEnd)
+  }
 
   const unlock = (event: FormEvent) => {
     event.preventDefault()
@@ -171,7 +199,7 @@ export default function AdminPage() {
             <button
               type="button"
               className="admin-icon-button"
-              onClick={() => void load(adminKey, range)}
+              onClick={() => void load(adminKey, range, customStart, customEnd)}
               aria-label="새로고침"
               disabled={loading}
             >
@@ -197,6 +225,36 @@ export default function AdminPage() {
             </button>
           ))}
         </nav>
+
+        {range === 'custom' && (
+          <form className="admin-custom-range" onSubmit={applyCustomRange}>
+            <label className="field">
+              <span className="field__label">시작 시각</span>
+              <input
+                type="datetime-local"
+                value={customStart}
+                max={customEnd}
+                onChange={(event) => setCustomStart(event.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">종료 시각</span>
+              <input
+                type="datetime-local"
+                value={customEnd}
+                min={customStart}
+                max={kstInputValue(new Date())}
+                onChange={(event) => setCustomEnd(event.target.value)}
+                required
+              />
+            </label>
+            <Button type="submit" loading={loading}>
+              이 구간 보기
+            </Button>
+            <small>한국 시간 기준 · 최대 90일까지 조회할 수 있습니다.</small>
+          </form>
+        )}
 
         <section className="admin-metrics" aria-label={`${stats.period.label} 요약`}>
           {metrics.map(({ label, value, detail, icon: Icon }) => (

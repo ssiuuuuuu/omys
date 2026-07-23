@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import secrets
 import time
 from collections import defaultdict, deque
@@ -980,32 +981,85 @@ def aware_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def stats_period(db: Session, range_name: str) -> dict:
-    config = STATS_RANGES[range_name]
-    bucket_hours = config["bucket_hours"]
-    bucket_count = config["bucket_count"]
+def stats_period(
+    db: Session,
+    range_name: str,
+    custom_start: datetime | None = None,
+    custom_end: datetime | None = None,
+) -> dict:
     now = datetime.now(timezone.utc)
-    local_now = now.astimezone(KST)
-    bucket_hour = local_now.hour - (local_now.hour % bucket_hours)
-    current_bucket = local_now.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
-    first_bucket = current_bucket - timedelta(hours=bucket_hours * (bucket_count - 1))
-    start = first_bucket.astimezone(timezone.utc)
+    if range_name == "custom":
+        if custom_start is None or custom_end is None:
+            raise HTTPException(422, "시작 시각과 종료 시각을 모두 입력해 주세요.")
+        start = (
+            custom_start.replace(tzinfo=KST).astimezone(timezone.utc)
+            if custom_start.tzinfo is None
+            else custom_start.astimezone(timezone.utc)
+        )
+        period_end = (
+            custom_end.replace(tzinfo=KST).astimezone(timezone.utc)
+            if custom_end.tzinfo is None
+            else custom_end.astimezone(timezone.utc)
+        )
+        if start >= period_end:
+            raise HTTPException(422, "종료 시각은 시작 시각보다 늦어야 합니다.")
+        if period_end > now + timedelta(minutes=1):
+            raise HTTPException(422, "종료 시각은 현재 시각 이후로 설정할 수 없습니다.")
+        duration = period_end - start
+        if duration > timedelta(days=90):
+            raise HTTPException(422, "직접 설정 기간은 최대 90일까지 조회할 수 있습니다.")
+        duration_hours = duration.total_seconds() / 3600
+        if duration_hours <= 24:
+            bucket_hours = 1
+        elif duration_hours <= 72:
+            bucket_hours = 3
+        elif duration_hours <= 24 * 7:
+            bucket_hours = 6
+        else:
+            bucket_hours = 24
+        bucket_count = math.ceil(duration_hours / bucket_hours)
+        first_bucket = start.astimezone(KST)
+        period_label = (
+            f"{first_bucket.strftime('%m/%d %H:%M')} ~ "
+            f"{period_end.astimezone(KST).strftime('%m/%d %H:%M')}"
+        )
+    else:
+        config = STATS_RANGES[range_name]
+        bucket_hours = config["bucket_hours"]
+        bucket_count = config["bucket_count"]
+        local_now = now.astimezone(KST)
+        bucket_hour = local_now.hour - (local_now.hour % bucket_hours)
+        current_bucket = local_now.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+        first_bucket = current_bucket - timedelta(hours=bucket_hours * (bucket_count - 1))
+        start = first_bucket.astimezone(timezone.utc)
+        period_end = now
+        period_label = config["label"]
+
+    local_period_end = period_end.astimezone(KST)
 
     buckets = []
     visitor_sets: list[set[str]] = []
     activity_visitor_sets: list[set[str]] = []
     for index in range(bucket_count):
         bucket_start = first_bucket + timedelta(hours=bucket_hours * index)
-        bucket_end = bucket_start + timedelta(hours=bucket_hours)
+        bucket_end = min(bucket_start + timedelta(hours=bucket_hours), local_period_end)
+        if range_name == "custom":
+            bucket_label = (
+                bucket_start.strftime("%m/%d")
+                if bucket_hours >= 24
+                else bucket_start.strftime("%m/%d %H:%M")
+            )
+        else:
+            bucket_label = (
+                bucket_start.strftime("%m/%d %H시")
+                if bucket_hours > 1
+                else bucket_start.strftime("%H시")
+            )
         buckets.append(
             {
                 "start": bucket_start.isoformat(),
                 "end": bucket_end.isoformat(),
-                "label": (
-                    bucket_start.strftime("%m/%d %H시")
-                    if bucket_hours > 1
-                    else bucket_start.strftime("%H시")
-                ),
+                "label": bucket_label,
                 "visitors": 0,
                 "pageviews": 0,
                 "activity_visitors": 0,
@@ -1029,7 +1083,7 @@ def stats_period(db: Session, range_name: str) -> dict:
     events = db.scalars(
         select(AnalyticsEvent).where(
             AnalyticsEvent.created_at >= start,
-            AnalyticsEvent.created_at <= now,
+            AnalyticsEvent.created_at < period_end,
         )
     ).all()
     period_visitors: set[str] = set()
@@ -1083,7 +1137,9 @@ def stats_period(db: Session, range_name: str) -> dict:
             buckets[index]["shares"] += 1
             period_shares += 1
 
-    rooms = db.scalars(select(Room).where(Room.created_at >= start, Room.created_at <= now)).all()
+    rooms = db.scalars(
+        select(Room).where(Room.created_at >= start, Room.created_at < period_end)
+    ).all()
     for room in rooms:
         index = bucket_index(room.created_at)
         if index is not None:
@@ -1111,7 +1167,7 @@ def stats_period(db: Session, range_name: str) -> dict:
         select(Selection).where(
             Selection.attempt == 1,
             Selection.created_at >= start,
-            Selection.created_at <= now,
+            Selection.created_at < period_end,
         )
     ).all()
     for selection in selections:
@@ -1120,7 +1176,7 @@ def stats_period(db: Session, range_name: str) -> dict:
             buckets[index]["draw_completed"] += 1
 
     revealed_rooms = db.scalars(
-        select(Room).where(Room.revealed_at >= start, Room.revealed_at <= now)
+        select(Room).where(Room.revealed_at >= start, Room.revealed_at < period_end)
     ).all()
     for room in revealed_rooms:
         index = bucket_index(room.revealed_at)
@@ -1150,16 +1206,14 @@ def stats_period(db: Session, range_name: str) -> dict:
                 "conversion_percent": round(create_starts / visitors * 100, 1) if visitors else 0,
             }
         )
-    traffic_source_rows.sort(
-        key=lambda row: (-row["visitors"], -row["pageviews"], row["source"])
-    )
+    traffic_source_rows.sort(key=lambda row: (-row["visitors"], -row["pageviews"], row["source"]))
     return {
         "range": range_name,
-        "label": config["label"],
+        "label": period_label,
         "timezone": "Asia/Seoul",
         "bucket_hours": bucket_hours,
         "start": start.isoformat(),
-        "end": now.isoformat(),
+        "end": period_end.isoformat(),
         "totals": {
             "visitors": len(period_visitors),
             "pageviews": sum(bucket["pageviews"] for bucket in buckets),
@@ -1186,7 +1240,9 @@ def stats_period(db: Session, range_name: str) -> dict:
 
 @app.get("/api/admin/stats")
 def admin_stats(
-    range_name: str = Query(default="24h", alias="range", pattern="^(6h|12h|24h|3d)$"),
+    range_name: str = Query(default="24h", alias="range", pattern="^(6h|12h|24h|3d|custom)$"),
+    start: datetime | None = Query(default=None),
+    end: datetime | None = Query(default=None),
     x_admin_key: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1258,5 +1314,5 @@ def admin_stats(
             "room_to_draw_percent": round(drawn / rooms * 100, 1) if rooms else 0,
             "draw_to_reveal_percent": round(revealed / drawn * 100, 1) if drawn else 0,
         },
-        "period": stats_period(db, range_name),
+        "period": stats_period(db, range_name, start, end),
     }

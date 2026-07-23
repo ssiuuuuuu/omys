@@ -76,7 +76,7 @@ export type AdminTrafficSource = {
 
 export type AdminStats = AdminMetricSummary & {
   period: {
-    range: '6h' | '12h' | '24h' | '3d'
+    range: '6h' | '12h' | '24h' | '3d' | 'custom'
     label: string
     timezone: 'Asia/Seoul'
     bucket_hours: number
@@ -135,8 +135,17 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
   return response.json()
 }
 
-export function getAdminStats(adminKey: string, range: AdminStats['period']['range']) {
-  return api<AdminStats>(`/api/admin/stats?range=${range}`, {
+export function getAdminStats(
+  adminKey: string,
+  range: AdminStats['period']['range'],
+  customWindow?: { start: string; end: string },
+) {
+  const params = new URLSearchParams({ range })
+  if (range === 'custom' && customWindow) {
+    params.set('start', `${customWindow.start}:00+09:00`)
+    params.set('end', `${customWindow.end}:00+09:00`)
+  }
+  return api<AdminStats>(`/api/admin/stats?${params.toString()}`, {
     headers: { 'X-Admin-Key': adminKey },
   })
 }

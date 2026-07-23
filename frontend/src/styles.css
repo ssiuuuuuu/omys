@@ -2321,6 +2321,29 @@ a.status:hover {
   background: #fff;
   box-shadow: 0 4px 12px #302a6517;
 }
+.admin-custom-range {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 10px 35px #302a5e0b;
+}
+.admin-custom-range input {
+  height: 48px;
+}
+.admin-custom-range .button {
+  min-height: 48px;
+  white-space: nowrap;
+}
+.admin-custom-range > small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 10px;
+}
 .admin-metrics {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2592,6 +2615,12 @@ a.status:hover {
     min-width: 0;
     flex: 1;
     padding: 0 5px;
+  }
+  .admin-custom-range {
+    grid-template-columns: 1fr;
+  }
+  .admin-custom-range > small {
+    grid-column: auto;
   }
   .admin-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+
+
 def admin_headers():
     return {"X-Admin-Key": "change-me-before-production"}
 
@@ -104,6 +107,50 @@ def test_three_day_stats_use_six_hour_buckets(client):
     period = response.json()["period"]
     assert period["bucket_hours"] == 6
     assert len(period["series"]) == 12
+
+
+def test_admin_stats_support_custom_kst_window(client):
+    response = client.post(
+        "/api/analytics",
+        json={
+            "anonymous_session_id": "custom-window-visitor",
+            "event_name": "landing_view",
+            "metadata": {},
+        },
+    )
+    assert response.status_code == 202
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(hours=2)
+
+    response = client.get(
+        "/api/admin/stats",
+        params={"range": "custom", "start": start.isoformat(), "end": end.isoformat()},
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 200
+    period = response.json()["period"]
+    assert period["range"] == "custom"
+    assert period["bucket_hours"] == 1
+    assert len(period["series"]) == 2
+    assert period["totals"]["visitors"] == 1
+
+
+def test_admin_stats_validate_custom_window(client):
+    now = datetime.now(timezone.utc)
+    missing = client.get(
+        "/api/admin/stats",
+        params={"range": "custom"},
+        headers=admin_headers(),
+    )
+    reversed_window = client.get(
+        "/api/admin/stats",
+        params={"range": "custom", "start": now.isoformat(), "end": now.isoformat()},
+        headers=admin_headers(),
+    )
+
+    assert missing.status_code == 422
+    assert reversed_window.status_code == 422
 
 
 def test_admin_stats_reject_unknown_range(client):
